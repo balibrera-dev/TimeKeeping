@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test src/utils/*.test.js"
+    "test": "node --test src/utils/reducer.test.js"
   },
   "dependencies": {
     "lucide-react": "^1.57.0",
@@ -19,5 +19,8 @@
     "@vitejs/plugin-react": "^6.1.2",
     "tailwindcss": "^4.3.3",
     "vite": "^8.3.4"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "1.2.13"
   }
 }
