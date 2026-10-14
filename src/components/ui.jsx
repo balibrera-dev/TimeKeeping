@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { X } from 'lucide-react';
+import { INTERRUPTIONS } from '../types/index.js';
 
 const BUTTON_VARIANTS = {
   primary: 'bg-emerald-600 text-white hover:bg-emerald-500 focus-visible:ring-emerald-500',
@@ -149,19 +150,57 @@ export function Field({ label, children, hint }) {
   );
 }
 
-/** Stable color per category for calendar blocks and charts. */
-const CATEGORY_COLORS = [
-  { block: 'bg-sky-100 border-sky-500 text-sky-900 dark:bg-sky-500/20 dark:text-sky-100', bar: 'bg-sky-500' },
-  { block: 'bg-violet-100 border-violet-500 text-violet-900 dark:bg-violet-500/20 dark:text-violet-100', bar: 'bg-violet-500' },
-  { block: 'bg-teal-100 border-teal-500 text-teal-900 dark:bg-teal-500/20 dark:text-teal-100', bar: 'bg-teal-500' },
-  { block: 'bg-indigo-100 border-indigo-500 text-indigo-900 dark:bg-indigo-500/20 dark:text-indigo-100', bar: 'bg-indigo-500' },
-  { block: 'bg-rose-100 border-rose-500 text-rose-900 dark:bg-rose-500/20 dark:text-rose-100', bar: 'bg-rose-500' },
-  { block: 'bg-cyan-100 border-cyan-500 text-cyan-900 dark:bg-cyan-500/20 dark:text-cyan-100', bar: 'bg-cyan-500' },
-  { block: 'bg-fuchsia-100 border-fuchsia-500 text-fuchsia-900 dark:bg-fuchsia-500/20 dark:text-fuchsia-100', bar: 'bg-fuchsia-500' },
-];
+/** Fallback colors for tasks without a client, stable per category. */
+const CATEGORY_HEX = ['#0ea5e9', '#8b5cf6', '#14b8a6', '#6366f1', '#f43f5e', '#06b6d4', '#d946ef'];
 
-export function categoryColor(category = '') {
+export function categoryHex(category = '') {
   let h = 0;
   for (const ch of category) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return CATEGORY_COLORS[h % CATEGORY_COLORS.length];
+  return CATEGORY_HEX[h % CATEGORY_HEX.length];
+}
+
+/**
+ * The color a task is drawn with everywhere (cards, calendar, charts):
+ * interruptions use their type color, then the client's color, then a
+ * category-based fallback.
+ */
+export function taskColor(task, clients) {
+  if (task.kind === 'interruption') return INTERRUPTIONS[task.interruptType]?.color ?? '#64748b';
+  const client = task.clientId && clients?.find((c) => c.id === task.clientId);
+  return client ? client.color : categoryHex(task.category);
+}
+
+/** Small colored pill with a client's name. */
+export function ClientBadge({ client, className = '' }) {
+  if (!client) return null;
+  return (
+    <span
+      className={`inline-flex max-w-[12rem] items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${className}`}
+      style={{ backgroundColor: `${client.color}1a`, color: client.color, boxShadow: `inset 0 0 0 1px ${client.color}55` }}
+    >
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: client.color }} />
+      <span className="truncate">{client.name}</span>
+    </span>
+  );
+}
+
+/** Client dropdown used in task forms. */
+export function ClientSelect({ clients, value, onChange, className = '', onManage }) {
+  return (
+    <div className="flex items-center gap-2">
+      <select className={`${inputClass} ${className}`} value={value ?? ''} onChange={(e) => onChange(e.target.value || null)}>
+        <option value="">No client</option>
+        {clients.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+      {onManage && (
+        <button type="button" onClick={onManage} className="shrink-0 text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400">
+          Manage
+        </button>
+      )}
+    </div>
+  );
 }

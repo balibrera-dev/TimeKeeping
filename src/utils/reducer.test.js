@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { initialState, reducer, sanitizeState } from './reducer.js';
-import { taskElapsed, sessionsForDay } from './sessions.js';
+import { taskElapsed, sessionsForDay, subtaskTotals } from './sessions.js';
 import { toCSV, dayLogRows } from './export.js';
 
 const T0 = new Date(2026, 9, 14, 9, 0, 0).getTime();
@@ -26,7 +26,7 @@ test('switching closes the running session and starts the next one atomically', 
   const b = byId(s, 't2');
   assert.equal(a.status, 'paused');
   assert.equal(a.activeStart, null);
-  assert.deepEqual(a.logs, [{ startTime: T0, endTime: T0 + 25 * MIN, duration: 25 * MIN }]);
+  assert.deepEqual(a.logs, [{ startTime: T0, endTime: T0 + 25 * MIN, duration: 25 * MIN, subtaskId: null }]);
   assert.equal(b.status, 'active');
   assert.equal(b.activeStart, T0 + 25 * MIN);
   assert.equal(s.tasks.filter((t) => t.status === 'active').length, 1);
@@ -102,4 +102,97 @@ test('CSV export escapes commas and quotes', () => {
   assert.equal(rows.length, 1);
   assert.equal(rows[0].durationMinutes, 30);
   assert.match(toCSV(rows), /"Fix ""ETL"", part 2"/);
+});
+
+function withSubtasks() {
+  let s = { ...initialState(T0), tasks: [] };
+  s = reducer(s, {
+    type: 'TASK_CREATE',
+    id: 'r',
+    title: 'Report',
+    category: 'Reporting',
+    subtasks: [
+      { title: 'Get data', estimate: 30 },
+      { title: 'Build visual', estimate: 45 },
+      { title: 'Approval', estimate: 15 },
+    ],
+    now: T0,
+  });
+  return s;
+}
+
+test('creating a task does not start it', () => {
+  const s = withTasks('A');
+  assert.equal(byId(s, 't1').status, 'idle');
+  assert.equal(s.tasks.filter((t) => t.status === 'active').length, 0);
+});
+
+test('time is allocated to the selected subtask and the task total is the sum', () => {
+  let s = withSubtasks();
+  const [a, b] = byId(s, 'r').subtasks;
+  s = reducer(s, { type: 'TASK_START', id: 'r', now: T0 });
+  assert.equal(byId(s, 'r').currentSubtaskId, a.id, 'defaults to the first open subtask');
+  // Clicking another subtask while running moves the timer there.
+  s = reducer(s, { type: 'TASK_START', id: 'r', subtaskId: b.id, now: T0 + 20 * MIN });
+  const r = byId(s, 'r');
+  assert.equal(r.status, 'active');
+  assert.equal(r.currentSubtaskId, b.id);
+  assert.equal(r.activeStart, T0 + 20 * MIN);
+  const totals = subtaskTotals(r, T0 + 30 * MIN);
+  assert.equal(totals.get(a.id), 20 * MIN);
+  assert.equal(totals.get(b.id), 10 * MIN);
+  assert.equal(taskElapsed(r, T0 + 30 * MIN), 30 * MIN);
+});
+
+test('starting a paused task on a subtask switches away from the running one', () => {
+  let s = withSubtasks();
+  s = reducer(s, { type: 'TASK_CREATE', id: 'o', title: 'Other', subtasks: [], now: T0 });
+  const c = byId(s, 'r').subtasks[2];
+  s = reducer(s, { type: 'TASK_START', id: 'o', now: T0 });
+  s = reducer(s, { type: 'TASK_START', id: 'r', subtaskId: c.id, now: T0 + 5 * MIN });
+  assert.equal(byId(s, 'o').status, 'paused');
+  assert.equal(byId(s, 'r').currentSubtaskId, c.id);
+});
+
+test('checking off the running subtask moves the timer to the next open one', () => {
+  let s = withSubtasks();
+  const [a, b] = byId(s, 'r').subtasks;
+  s = reducer(s, { type: 'TASK_START', id: 'r', now: T0 });
+  s = reducer(s, { type: 'SUBTASK_TOGGLE', taskId: 'r', subtaskId: a.id, now: T0 + 15 * MIN });
+  const r = byId(s, 'r');
+  assert.equal(r.currentSubtaskId, b.id);
+  assert.deepEqual(r.logs, [{ startTime: T0, endTime: T0 + 15 * MIN, duration: 15 * MIN, subtaskId: a.id }]);
+});
+
+test('a call interrupts the running task and resumes it when it ends', () => {
+  let s = withSubtasks();
+  s = reducer(s, { type: 'TASK_START', id: 'r', now: T0 });
+  s = reducer(s, { type: 'INTERRUPT_START', id: 'call', interruptType: 'call', title: 'Standup', now: T0 + 10 * MIN });
+  assert.equal(byId(s, 'r').status, 'paused');
+  assert.equal(byId(s, 'call').status, 'active');
+  assert.equal(byId(s, 'call').resumeTaskId, 'r');
+  // Going to lunch straight from the call keeps the original task to resume.
+  s = reducer(s, { type: 'INTERRUPT_START', id: 'lunch', interruptType: 'lunch', now: T0 + 40 * MIN });
+  assert.equal(byId(s, 'call').status, 'completed');
+  assert.equal(byId(s, 'lunch').resumeTaskId, 'r');
+  s = reducer(s, { type: 'INTERRUPT_END', id: 'lunch', resume: true, now: T0 + 70 * MIN });
+  assert.equal(byId(s, 'lunch').status, 'completed');
+  assert.equal(byId(s, 'r').status, 'active');
+  assert.equal(taskElapsed(byId(s, 'call'), T0 + 99 * MIN), 30 * MIN);
+});
+
+test('deleting a client clears it from its tasks', () => {
+  let s = withTasks('A');
+  s = reducer(s, { type: 'CLIENT_SAVE', client: { id: 'c1', name: 'Acme', color: '#0ea5e9' }, now: T0 });
+  s = reducer(s, { type: 'TASK_UPDATE', id: 't1', patch: { clientId: 'c1' } });
+  s = reducer(s, { type: 'CLIENT_DELETE', id: 'c1' });
+  assert.equal(s.clients.length, 0);
+  assert.equal(byId(s, 't1').clientId, null);
+});
+
+test('sanitizeState upgrades v1 data with clients and subtask comments', () => {
+  const s = sanitizeState({ templates: [], tasks: [{ id: 'a', title: 'A', status: 'idle', subtasks: [{ id: 's', title: 'S', estimate: 5, done: false }] }] });
+  assert.deepEqual(s.clients, []);
+  assert.equal(s.tasks[0].subtasks[0].notes, '');
+  assert.equal(s.tasks[0].kind, 'task');
 });

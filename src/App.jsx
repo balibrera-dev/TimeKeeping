@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActiveBar } from './components/ActiveBar.jsx';
 import { TasksView } from './components/TasksView.jsx';
 import { TemplatesView } from './components/TemplatesView.jsx';
 import { CalendarView } from './components/CalendarView.jsx';
+import { ClientsView } from './components/ClientsView.jsx';
+import { SettingsModal } from './components/SettingsModal.jsx';
+import { StartPrompt } from './components/StartPrompt.jsx';
 import { useTracker } from './hooks/useTracker.js';
 import { useNow } from './hooks/useNow.js';
 import { useTheme } from './hooks/useTheme.js';
@@ -12,6 +15,11 @@ export default function App() {
   const now = useNow(1000);
   const { theme, toggle } = useTheme();
   const [view, setView] = useState('tasks');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [created, setCreated] = useState(null); // { id, title } of a task created but not started
+
+  const onCreated = useCallback((id, title) => setCreated({ id, title }), []);
+  const dismissCreated = useCallback(() => setCreated(null), []);
 
   return (
     <div className="min-h-screen">
@@ -24,14 +32,27 @@ export default function App() {
         setView={setView}
         theme={theme}
         toggleTheme={toggle}
+        onCreated={onCreated}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         {view === 'tasks' && (
-          <TasksView state={state} activeTask={activeTask} actions={actions} now={now} onManageTemplates={() => setView('templates')} />
+          <TasksView
+            state={state}
+            activeTask={activeTask}
+            actions={actions}
+            now={now}
+            onCreated={onCreated}
+            onManageTemplates={() => setView('templates')}
+            onManageClients={() => setView('clients')}
+          />
         )}
-        {view === 'calendar' && <CalendarView tasks={state.tasks} now={now} />}
-        {view === 'templates' && <TemplatesView templates={state.templates} actions={actions} />}
+        {view === 'calendar' && <CalendarView tasks={state.tasks} clients={state.clients} now={now} />}
+        {view === 'clients' && <ClientsView state={state} actions={actions} now={now} />}
+        {view === 'templates' && <TemplatesView templates={state.templates} actions={actions} onCreated={onCreated} />}
       </main>
+      <StartPrompt created={created} hasActive={!!activeTask} onStart={actions.start} onDismiss={dismissCreated} />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

@@ -6,9 +6,15 @@ import { DAY, startOfDay } from './time.js';
  * @param {number} now
  */
 export function taskSessions(task, now) {
-  const sessions = task.logs.map((l) => ({ ...l, live: false }));
+  const sessions = task.logs.map((l) => ({ ...l, subtaskId: l.subtaskId ?? null, live: false }));
   if (task.activeStart != null) {
-    sessions.push({ startTime: task.activeStart, endTime: now, duration: now - task.activeStart, live: true });
+    sessions.push({
+      startTime: task.activeStart,
+      endTime: now,
+      duration: now - task.activeStart,
+      subtaskId: task.currentSubtaskId ?? null,
+      live: true,
+    });
   }
   return sessions;
 }
@@ -19,6 +25,19 @@ export function taskElapsed(task, now) {
   for (const l of task.logs) total += l.duration;
   if (task.activeStart != null) total += Math.max(0, now - task.activeStart);
   return total;
+}
+
+/**
+ * Tracked milliseconds per subtask id (null key = time not on any subtask).
+ * The task total is always the sum of these values.
+ * @returns {Map<string | null, number>}
+ */
+export function subtaskTotals(task, now) {
+  const totals = new Map();
+  for (const s of taskSessions(task, now)) {
+    totals.set(s.subtaskId, (totals.get(s.subtaskId) ?? 0) + Math.max(0, s.duration));
+  }
+  return totals;
 }
 
 /** Sum of subtask estimates, in minutes. */
@@ -38,7 +57,7 @@ export function sessionsInRange(tasks, rangeStart, rangeEnd, now) {
       const start = Math.max(s.startTime, rangeStart);
       const end = Math.min(s.endTime, rangeEnd);
       if (end > start) {
-        out.push({ task, startTime: start, endTime: end, duration: end - start, live: s.live });
+        out.push({ task, subtaskId: s.subtaskId, startTime: start, endTime: end, duration: end - start, live: s.live });
       }
     }
   }
@@ -60,4 +79,20 @@ export function breakdown(sessions) {
     byTask.set(s.task.id, row);
   }
   return [...byTask.values()].sort((a, b) => b.duration - a.duration);
+}
+
+/** Per-client totals for a list of clipped sessions, biggest first. Tasks without a client share the null row. */
+export function clientBreakdown(sessions) {
+  const byClient = new Map();
+  for (const s of sessions) {
+    const key = s.task.clientId ?? null;
+    byClient.set(key, (byClient.get(key) ?? 0) + s.duration);
+  }
+  return [...byClient.entries()].map(([clientId, duration]) => ({ clientId, duration })).sort((a, b) => b.duration - a.duration);
+}
+
+/** Title of the subtask a session was tracked against, if it still exists. */
+export function subtaskTitle(task, subtaskId) {
+  if (!subtaskId) return '';
+  return task.subtasks.find((st) => st.id === subtaskId)?.title ?? '';
 }

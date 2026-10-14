@@ -4,31 +4,37 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  CornerDownRight,
+  MessageSquare,
   Pause,
   Play,
   Plus,
   RotateCcw,
   RotateCw,
-  StickyNote,
   Trash2,
   X,
 } from 'lucide-react';
-import { Button, ProgressBar, STATUS_STYLES, StatusBadge, inputClass } from './ui.jsx';
+import { Button, ClientBadge, ClientSelect, ProgressBar, StatusBadge, inputClass, taskColor } from './ui.jsx';
+import { CommentBox } from './CommentBox.jsx';
+import { INTERRUPTIONS } from '../types/index.js';
 import { formatClock, formatMinutes, formatTimeOfDay } from '../utils/time.js';
-import { taskElapsed, taskEstimate } from '../utils/sessions.js';
+import { subtaskTitle, subtaskTotals, taskElapsed, taskEstimate } from '../utils/sessions.js';
 
-export function TaskCard({ task, now, actions, hasActive, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen);
+/** A task row. Collapsed by default; expand for subtasks, comments and sessions. */
+export function TaskCard({ task, now, actions, hasActive, clients, onManageClients }) {
+  const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(null); // 'reset' | 'delete' | null
   const elapsed = taskElapsed(task, now);
   const estimate = taskEstimate(task);
   const doneCount = task.subtasks.filter((s) => s.done).length;
   const isActive = task.status === 'active';
   const isCompleted = task.status === 'completed';
-
-  useEffect(() => {
-    if (isActive) setOpen(true);
-  }, [isActive]);
+  const isInterruption = task.kind === 'interruption';
+  const client = clients.find((c) => c.id === task.clientId);
+  const color = taskColor(task, clients);
+  const current = task.subtasks.find((s) => s.id === task.currentSubtaskId);
+  const hasComments = task.notes.trim() || task.subtasks.some((s) => s.notes?.trim());
+  const sessionCount = task.logs.length + (isActive ? 1 : 0);
 
   useEffect(() => {
     if (!confirm) return;
@@ -38,30 +44,38 @@ export function TaskCard({ task, now, actions, hasActive, defaultOpen = false })
 
   return (
     <div
-      className={`rounded-xl border border-l-4 bg-white shadow-sm transition-shadow dark:bg-slate-900 ${STATUS_STYLES[task.status].border} ${
+      className={`rounded-xl border border-l-4 bg-white shadow-sm transition-shadow dark:bg-slate-900 ${
         isActive ? 'border-emerald-200 shadow-emerald-100 ring-1 ring-emerald-200 dark:border-emerald-900 dark:shadow-none dark:ring-emerald-900' : 'border-slate-200 dark:border-slate-800'
       }`}
+      style={{ borderLeftColor: color }}
     >
-      <div className="flex flex-wrap items-center gap-3 p-4">
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          aria-expanded={open}
-        >
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <button type="button" onClick={() => setOpen(!open)} className="flex min-w-0 flex-1 items-center gap-2 text-left" aria-expanded={open}>
           {open ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className={`truncate font-semibold ${isCompleted ? 'text-slate-500 line-through decoration-slate-300' : ''}`}>{task.title}</span>
               <StatusBadge status={task.status} />
-              {task.notes.trim() && <StickyNote className="h-3.5 w-3.5 text-amber-500" aria-label="Has notes" />}
+              <ClientBadge client={client} />
+              {isInterruption && (
+                <span className="rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ backgroundColor: color }}>
+                  {INTERRUPTIONS[task.interruptType]?.label}
+                </span>
+              )}
+              {hasComments && <MessageSquare className="h-3.5 w-3.5 text-amber-500" aria-label="Has comments" />}
             </div>
-            <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
               {task.category}
               {task.subtasks.length > 0 && ` · ${doneCount}/${task.subtasks.length} subtasks`}
               {estimate > 0 && ` · est ${formatMinutes(estimate)}`}
-              {` · ${task.logs.length + (isActive ? 1 : 0)} session${task.logs.length + (isActive ? 1 : 0) === 1 ? '' : 's'}`}
+              {` · ${sessionCount} session${sessionCount === 1 ? '' : 's'}`}
             </div>
+            {current && !isCompleted && (
+              <div className={`mt-0.5 flex items-center gap-1 truncate text-xs ${isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                <CornerDownRight className="h-3 w-3 shrink-0" aria-hidden="true" />
+                {isActive ? 'Tracking' : 'Last on'}: <span className="truncate font-medium">{current.title}</span>
+              </div>
+            )}
           </div>
         </button>
 
@@ -74,12 +88,14 @@ export function TaskCard({ task, now, actions, hasActive, defaultOpen = false })
 
         <div className="flex items-center gap-1.5">
           {isCompleted ? (
-            <Button size="sm" icon={RotateCw} onClick={() => actions.reopen(task.id)}>
-              Reopen
-            </Button>
+            !isInterruption && (
+              <Button size="sm" icon={RotateCw} onClick={() => actions.reopen(task.id)}>
+                Reopen
+              </Button>
+            )
           ) : isActive ? (
             <Button size="sm" variant="amber" icon={Pause} onClick={() => actions.pause(task.id)}>
-              Pause
+              {isInterruption ? 'End' : 'Pause'}
             </Button>
           ) : (
             <Button size="sm" variant="primary" icon={hasActive ? ArrowRightLeft : Play} onClick={() => actions.start(task.id)}>
@@ -116,10 +132,26 @@ export function TaskCard({ task, now, actions, hasActive, defaultOpen = false })
       </div>
 
       {open && (
-        <div className="grid gap-4 border-t border-slate-100 p-4 md:grid-cols-2 dark:border-slate-800">
-          <SubtaskList task={task} actions={actions} />
+        <div className="grid gap-4 border-t border-slate-100 p-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] dark:border-slate-800">
+          <SubtaskList task={task} now={now} actions={actions} client={client} />
           <div className="space-y-4">
-            <NotesBox task={task} onSave={actions.setNotes} />
+            {!isInterruption && (
+              <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Client</h4>
+                <ClientSelect clients={clients} value={task.clientId} onChange={(clientId) => actions.updateTask(task.id, { clientId })} onManage={onManageClients} />
+              </div>
+            )}
+            {(task.subtasks.length === 0 || task.notes.trim()) && (
+              <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{task.subtasks.length ? 'General comment' : 'Comment'}</h4>
+                <CommentBox
+                  value={task.notes}
+                  onSave={(notes) => actions.setNotes(task.id, notes)}
+                  context={{ task: task.title, client: client?.name }}
+                  placeholder="Blockers, decisions, links… e.g. Waiting on data warehouse access"
+                />
+              </div>
+            )}
             <SessionList task={task} now={now} />
           </div>
         </div>
@@ -128,43 +160,128 @@ export function TaskCard({ task, now, actions, hasActive, defaultOpen = false })
   );
 }
 
-function SubtaskList({ task, actions }) {
+/**
+ * Checklist where each subtask carries its own tracked time and one comment.
+ * Clicking a subtask's name puts the timer on it (starting or switching the task).
+ */
+function SubtaskList({ task, now, actions, client }) {
   const [title, setTitle] = useState('');
   const [estimate, setEstimate] = useState(30);
+  const [commentOpen, setCommentOpen] = useState(null);
+  const totals = subtaskTotals(task, now);
+  const known = new Set(task.subtasks.map((s) => s.id));
+  let unassigned = 0;
+  for (const [id, ms] of totals) if (!known.has(id)) unassigned += ms;
+  const isActive = task.status === 'active';
+  const canTrack = task.status !== 'completed';
+
   const add = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
     actions.addSubtask(task.id, title.trim(), estimate);
     setTitle('');
   };
+
   return (
     <div>
-      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Checklist</h4>
-      {task.subtasks.length === 0 && <p className="mb-2 text-sm text-slate-400">No subtasks. Add one below to break this task down.</p>}
+      <h4 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Subtasks
+        {task.subtasks.length > 0 && canTrack && <span className="font-normal normal-case tracking-normal text-slate-400">Click a subtask to track time on it</span>}
+      </h4>
+      {task.subtasks.length === 0 && <p className="mb-2 text-sm text-slate-400">No subtasks. Add one below to break this task down and track time per step.</p>}
       <ul className="space-y-1">
-        {task.subtasks.map((s) => (
-          <li key={s.id} className="group flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-slate-50 dark:hover:bg-slate-800/60">
-            <input
-              type="checkbox"
-              checked={s.done}
-              onChange={() => actions.toggleSubtask(task.id, s.id)}
-              className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
-              id={`st-${s.id}`}
-            />
-            <label htmlFor={`st-${s.id}`} className={`flex-1 cursor-pointer text-sm ${s.done ? 'text-slate-400 line-through' : ''}`}>
-              {s.title}
-            </label>
-            <span className="text-xs text-slate-400">{formatMinutes(s.estimate)}</span>
-            <button
-              type="button"
-              onClick={() => actions.removeSubtask(task.id, s.id)}
-              className="invisible rounded p-0.5 text-slate-400 hover:text-rose-500 group-hover:visible"
-              aria-label="Remove subtask"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+        {task.subtasks.map((s) => {
+          const isCurrent = task.currentSubtaskId === s.id;
+          const tracking = isCurrent && isActive;
+          const spent = totals.get(s.id) ?? 0;
+          const over = s.estimate > 0 && spent > s.estimate * 60_000;
+          const showComment = commentOpen === s.id;
+          return (
+            <li key={s.id} className={`rounded-md ${tracking ? 'bg-emerald-50 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-900' : ''}`}>
+              <div className="group flex items-center gap-2 px-1.5 py-1">
+                <input
+                  type="checkbox"
+                  checked={s.done}
+                  onChange={() => actions.toggleSubtask(task.id, s.id)}
+                  className="h-4 w-4 shrink-0 rounded border-slate-300 accent-emerald-600"
+                  aria-label={`Mark “${s.title}” ${s.done ? 'not done' : 'done'}`}
+                />
+                <button
+                  type="button"
+                  disabled={!canTrack}
+                  onClick={() => actions.start(task.id, s.id)}
+                  className={`flex min-w-0 flex-1 items-center gap-2 rounded text-left text-sm ${canTrack ? 'hover:text-emerald-700 dark:hover:text-emerald-400' : 'cursor-default'} ${
+                    s.done ? 'text-slate-400 line-through' : ''
+                  }`}
+                  title={tracking ? 'Timer is on this subtask' : canTrack ? 'Track time on this subtask' : undefined}
+                >
+                  {tracking ? (
+                    <span className="relative flex h-2 w-2 shrink-0">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                    </span>
+                  ) : isCurrent && canTrack ? (
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" title="Last tracked subtask" />
+                  ) : (
+                    <Play className="h-3 w-3 shrink-0 text-slate-300 opacity-0 group-hover:opacity-100 dark:text-slate-600" aria-hidden="true" />
+                  )}
+                  <span className="truncate">{s.title}</span>
+                </button>
+                <span
+                  className={`tabular shrink-0 font-mono text-xs ${tracking ? 'font-semibold text-emerald-700 dark:text-emerald-400' : over ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}
+                  title={`Tracked ${formatClock(spent)}${s.estimate ? ` of ${formatMinutes(s.estimate)} estimated` : ''}`}
+                >
+                  {spent > 0 ? formatClock(spent) : '–'}
+                  <span className="font-sans font-normal text-slate-400"> / {formatMinutes(s.estimate)}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCommentOpen(showComment ? null : s.id)}
+                  className={`rounded p-0.5 ${s.notes?.trim() ? 'text-amber-500' : 'text-slate-300 hover:text-slate-500 dark:text-slate-600'}`}
+                  aria-label={s.notes?.trim() ? 'Edit comment' : 'Add comment'}
+                  title={s.notes?.trim() ? 'Edit comment' : 'Add comment'}
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => actions.removeSubtask(task.id, s.id)}
+                  className="invisible rounded p-0.5 text-slate-400 hover:text-rose-500 group-hover:visible"
+                  aria-label="Remove subtask"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {showComment ? (
+                <div className="px-1.5 pb-2 pl-7">
+                  <CommentBox
+                    value={s.notes ?? ''}
+                    onSave={(notes) => actions.setSubtaskNotes(task.id, s.id, notes)}
+                    context={{ task: task.title, subtask: s.title, client: client?.name }}
+                    placeholder={`Comment on “${s.title}”…`}
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                s.notes?.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setCommentOpen(s.id)}
+                    className="block w-full truncate px-1.5 pb-1 pl-7 text-left text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                  >
+                    {s.notes.trim().split('\n').slice(-1)[0]}
+                  </button>
+                )
+              )}
+            </li>
+          );
+        })}
+        {task.subtasks.length > 0 && unassigned > 0 && (
+          <li className="flex items-center justify-between px-1.5 py-1 pl-7 text-xs text-slate-500 dark:text-slate-400">
+            <span>Not on a subtask</span>
+            <span className="tabular font-mono">{formatClock(unassigned)}</span>
           </li>
-        ))}
+        )}
       </ul>
       <form onSubmit={add} className="mt-2 flex gap-2">
         <input className={`${inputClass} py-1.5`} placeholder="Add subtask…" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -184,62 +301,34 @@ function SubtaskList({ task, actions }) {
   );
 }
 
-/** Context log for blockers and quick notes. Saves on a short debounce and on blur. */
-function NotesBox({ task, onSave }) {
-  const [value, setValue] = useState(task.notes);
-  useEffect(() => setValue(task.notes), [task.notes]);
-  useEffect(() => {
-    if (value === task.notes) return;
-    const id = setTimeout(() => onSave(task.id, value), 400);
-    return () => clearTimeout(id);
-  }, [value, task.id, task.notes, onSave]);
-
-  const stamp = () => {
-    const line = `[${new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}] `;
-    setValue((v) => (v && !v.endsWith('\n') ? `${v}\n${line}` : `${v}${line}`));
-  };
-
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Notes / context log</h4>
-        <button type="button" onClick={stamp} className="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400">
-          + timestamp
-        </button>
-      </div>
-      <textarea
-        rows={4}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={() => value !== task.notes && onSave(task.id, value)}
-        placeholder="Blockers, decisions, links… e.g. Waiting on data warehouse access"
-        className={`${inputClass} resize-y font-mono text-xs leading-relaxed`}
-      />
-    </div>
-  );
-}
-
 function SessionList({ task, now }) {
   const sessions = [...task.logs].reverse().slice(0, 5);
   if (!task.activeStart && sessions.length === 0) return null;
+  const current = subtaskTitle(task, task.currentSubtaskId);
   return (
     <div>
       <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Recent sessions</h4>
       <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
         {task.activeStart && (
-          <li className="flex justify-between font-medium text-emerald-600 dark:text-emerald-400">
-            <span>{formatTimeOfDay(task.activeStart)} – now</span>
-            <span className="tabular font-mono">{formatClock(now - task.activeStart)}</span>
+          <li className="flex justify-between gap-2 font-medium text-emerald-600 dark:text-emerald-400">
+            <span className="truncate">
+              {formatTimeOfDay(task.activeStart)} – now{current && ` · ${current}`}
+            </span>
+            <span className="tabular shrink-0 font-mono">{formatClock(now - task.activeStart)}</span>
           </li>
         )}
-        {sessions.map((l) => (
-          <li key={l.startTime} className="flex justify-between">
-            <span>
-              {new Date(l.startTime).toLocaleDateString([], { month: 'short', day: 'numeric' })} · {formatTimeOfDay(l.startTime)} – {formatTimeOfDay(l.endTime)}
-            </span>
-            <span className="tabular font-mono">{formatClock(l.duration)}</span>
-          </li>
-        ))}
+        {sessions.map((l) => {
+          const st = subtaskTitle(task, l.subtaskId);
+          return (
+            <li key={l.startTime} className="flex justify-between gap-2">
+              <span className="truncate">
+                {new Date(l.startTime).toLocaleDateString([], { month: 'short', day: 'numeric' })} · {formatTimeOfDay(l.startTime)} – {formatTimeOfDay(l.endTime)}
+                {st && ` · ${st}`}
+              </span>
+              <span className="tabular shrink-0 font-mono">{formatClock(l.duration)}</span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

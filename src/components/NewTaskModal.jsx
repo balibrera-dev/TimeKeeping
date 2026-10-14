@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
 import { LayoutTemplate, Play, Plus } from 'lucide-react';
-import { Button, Field, Modal, inputClass } from './ui.jsx';
+import { Button, ClientSelect, Field, Modal, inputClass } from './ui.jsx';
 import { SubtaskEditor, cleanSubtasks } from './SubtaskEditor.jsx';
 import { CATEGORIES } from '../types/index.js';
 import { uid } from '../utils/id.js';
 
-export function NewTaskModal({ open, onClose, templates, onCreate, onManageTemplates }) {
+/**
+ * Create a task from a template or ad-hoc. "Create" (also Enter) does not start
+ * the timer; the caller can then offer to start it. "Create & start" starts it.
+ */
+export function NewTaskModal({ open, onClose, templates, clients, onCreate, onManageTemplates, onManageClients }) {
   const [templateId, setTemplateId] = useState('');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Development');
   const [subtasks, setSubtasks] = useState([]);
+  const [clientId, setClientId] = useState(null);
 
   useEffect(() => {
     if (open) {
@@ -17,6 +22,7 @@ export function NewTaskModal({ open, onClose, templates, onCreate, onManageTempl
       setTitle('');
       setCategory('Development');
       setSubtasks([]);
+      setClientId(null);
     }
   }, [open]);
 
@@ -34,7 +40,7 @@ export function NewTaskModal({ open, onClose, templates, onCreate, onManageTempl
 
   const submit = (startNow) => {
     if (!title.trim()) return;
-    onCreate({ title, category, templateId: templateId || null, subtasks: cleanSubtasks(subtasks), startNow });
+    onCreate({ title, category, clientId, templateId: templateId || null, subtasks: cleanSubtasks(subtasks), startNow });
     onClose();
   };
 
@@ -46,11 +52,11 @@ export function NewTaskModal({ open, onClose, templates, onCreate, onManageTempl
       wide
       footer={
         <>
-          <Button variant="secondary" icon={Plus} onClick={() => submit(false)} disabled={!title.trim()}>
-            Create
-          </Button>
-          <Button variant="primary" icon={Play} onClick={() => submit(true)} disabled={!title.trim()}>
+          <Button variant="secondary" icon={Play} onClick={() => submit(true)} disabled={!title.trim()}>
             Create &amp; start
+          </Button>
+          <Button variant="primary" icon={Plus} onClick={() => submit(false)} disabled={!title.trim()} title="Create without starting the timer (Enter)">
+            Create
           </Button>
         </>
       }
@@ -59,7 +65,7 @@ export function NewTaskModal({ open, onClose, templates, onCreate, onManageTempl
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          submit(true);
+          submit(false);
         }}
       >
         <Field label="Start from a template">
@@ -85,7 +91,7 @@ export function NewTaskModal({ open, onClose, templates, onCreate, onManageTempl
           )}
         </Field>
 
-        <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
+        <div className="grid gap-3 sm:grid-cols-[1fr_12rem_12rem]">
           <Field label="Task name">
             <input
               autoFocus
@@ -102,7 +108,19 @@ export function NewTaskModal({ open, onClose, templates, onCreate, onManageTempl
               ))}
             </select>
           </Field>
+          <Field label="Client">
+            <ClientSelect clients={clients} value={clientId} onChange={setClientId} />
+          </Field>
         </div>
+        {clients.length === 0 && (
+          <p className="-mt-2 text-xs text-slate-500">
+            No clients yet.{' '}
+            <button type="button" className="font-medium text-emerald-600 hover:underline" onClick={onManageClients}>
+              Add clients
+            </button>{' '}
+            to color-code tasks and report time per client.
+          </p>
+        )}
 
         <SubtaskEditor subtasks={subtasks} onChange={setSubtasks} />
         <button type="submit" className="hidden" />

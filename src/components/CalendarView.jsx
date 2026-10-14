@@ -7,7 +7,7 @@ import { addDays, formatDateLong, formatDateShort, isSameDay, startOfDay, startO
 import { sessionsInRange } from '../utils/sessions.js';
 import { exportDay } from '../utils/export.js';
 
-export function CalendarView({ tasks, now }) {
+export function CalendarView({ tasks, clients, now }) {
   const [mode, setMode] = useState('day');
   const [anchor, setAnchor] = useState(() => startOfDay(Date.now()));
   const [flash, setFlash] = useState('');
@@ -28,7 +28,7 @@ export function CalendarView({ tasks, now }) {
   const exportDayTs = mode === 'day' ? anchor : isCurrent ? startOfDay(now) : anchor;
 
   const doExport = (format) => {
-    const n = exportDay(tasks, exportDayTs, format, Date.now());
+    const n = exportDay(tasks, exportDayTs, format, Date.now(), clients);
     setFlash(n ? `Exported ${n} session${n === 1 ? '' : 's'} for ${formatDateShort(exportDayTs)}` : `No sessions on ${formatDateShort(exportDayTs)}, exported an empty file`);
     setTimeout(() => setFlash(''), 3500);
   };
@@ -75,13 +75,14 @@ export function CalendarView({ tasks, now }) {
         <CalendarGrid
           days={days}
           tasks={tasks}
+          clients={clients}
           now={now}
           onSelectDay={(d) => {
             setAnchor(d);
             setMode('day');
           }}
         />
-        <MetricsPanel sessions={sessions} now={now} label={label} />
+        <MetricsPanel sessions={sessions} now={now} label={label} clients={clients} />
       </div>
     </div>
   );
