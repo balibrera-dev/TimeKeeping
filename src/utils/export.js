@@ -1,20 +1,27 @@
 import { DAY, isoDate, isoLocal, startOfDay } from './time.js';
-import { sessionsInRange } from './sessions.js';
+import { sessionsInRange, subtaskTitle } from './sessions.js';
 
 /** Flat rows for one day's sessions (open session clipped at `now`). */
-export function dayLogRows(tasks, dayTs, now) {
+export function dayLogRows(tasks, dayTs, now, clients = []) {
   const start = startOfDay(dayTs);
-  return sessionsInRange(tasks, start, start + DAY, now).map((s) => ({
-    date: isoDate(s.startTime),
-    task: s.task.title,
-    category: s.task.category,
-    status: s.task.status,
-    start: isoLocal(s.startTime),
-    end: isoLocal(s.endTime),
-    durationMinutes: Math.round((s.duration / 60_000) * 100) / 100,
-    running: s.live,
-    notes: s.task.notes,
-  }));
+  const clientName = (id) => clients.find((c) => c.id === id)?.name ?? '';
+  return sessionsInRange(tasks, start, start + DAY, now).map((s) => {
+    const subtask = s.task.subtasks.find((st) => st.id === s.subtaskId);
+    return {
+      date: isoDate(s.startTime),
+      client: clientName(s.task.clientId),
+      task: s.task.title,
+      subtask: subtaskTitle(s.task, s.subtaskId),
+      type: s.task.kind === 'interruption' ? s.task.interruptType : 'task',
+      category: s.task.category,
+      status: s.task.status,
+      start: isoLocal(s.startTime),
+      end: isoLocal(s.endTime),
+      durationMinutes: Math.round((s.duration / 60_000) * 100) / 100,
+      running: s.live,
+      comment: subtask ? subtask.notes : s.task.notes,
+    };
+  });
 }
 
 function csvCell(v) {
@@ -23,7 +30,7 @@ function csvCell(v) {
 }
 
 export function toCSV(rows) {
-  const headers = ['date', 'task', 'category', 'status', 'start', 'end', 'durationMinutes', 'running', 'notes'];
+  const headers = ['date', 'client', 'task', 'subtask', 'type', 'category', 'status', 'start', 'end', 'durationMinutes', 'running', 'comment'];
   const lines = [headers.join(',')];
   for (const r of rows) lines.push(headers.map((h) => csvCell(r[h])).join(','));
   return lines.join('\r\n');
@@ -46,8 +53,8 @@ export function downloadFile(filename, content, mime) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function exportDay(tasks, dayTs, format, now = Date.now()) {
-  const rows = dayLogRows(tasks, dayTs, now);
+export function exportDay(tasks, dayTs, format, now = Date.now(), clients = []) {
+  const rows = dayLogRows(tasks, dayTs, now, clients);
   const stamp = isoDate(dayTs);
   if (format === 'csv') {
     // BOM so Excel opens UTF-8 correctly.

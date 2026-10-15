@@ -1,6 +1,7 @@
 import { uid } from './id.js';
+import { INTERRUPTIONS } from '../types/index.js';
 
-export const STATE_VERSION = 1;
+export const STATE_VERSION = 2;
 
 /** Starter templates so the first run isn't empty. Users can edit or delete them. */
 export function defaultTemplates(now = Date.now()) {
@@ -39,16 +40,81 @@ export function defaultTemplates(now = Date.now()) {
 
 /** @returns {import('../types').TrackerState} */
 export function initialState(now = Date.now()) {
-  return { version: STATE_VERSION, templates: defaultTemplates(now), tasks: [] };
+  return { version: STATE_VERSION, templates: defaultTemplates(now), tasks: [], clients: [] };
 }
 
-/** Close the open session of a task, if any, returning the updated task. */
-function closeSession(task, now, nextStatus) {
-  if (task.activeStart == null) return { ...task, status: nextStatus ?? task.status };
+function newTask(fields, now) {
+  return {
+    id: fields.id ?? uid(),
+    title: fields.title.trim(),
+    category: fields.category || 'Other',
+    kind: fields.kind ?? 'task',
+    interruptType: fields.interruptType ?? null,
+    resumeTaskId: fields.resumeTaskId ?? null,
+    clientId: fields.clientId || null,
+    templateId: fields.templateId ?? null,
+    status: 'idle',
+    subtasks: (fields.subtasks ?? []).map((s) => ({
+      id: uid(),
+      title: s.title,
+      estimate: Number(s.estimate) || 0,
+      done: false,
+      notes: '',
+    })),
+    currentSubtaskId: null,
+    logs: [],
+    activeStart: null,
+    notes: '',
+    createdAt: now,
+    completedAt: null,
+  };
+}
+
+/**
+ * Close the open session of a task, if any. The closed log records which
+ * subtask the time belonged to. Status becomes `nextStatus` (default paused).
+ */
+function closeSession(task, now, nextStatus = 'paused') {
+  if (task.activeStart == null) return { ...task, status: nextStatus };
   const startTime = task.activeStart;
   const endTime = Math.max(now, startTime);
-  const logs = endTime > startTime ? [...task.logs, { startTime, endTime, duration: endTime - startTime }] : task.logs;
-  return { ...task, logs, activeStart: null, status: nextStatus ?? 'paused' };
+  const logs =
+    endTime > startTime
+      ? [...task.logs, { startTime, endTime, duration: endTime - startTime, subtaskId: task.currentSubtaskId ?? null }]
+      : task.logs;
+  return { ...task, logs, activeStart: null, status: nextStatus };
+}
+
+/** Stop a running task because something else takes over. Interruptions end for good. */
+function stopRunning(task, now) {
+  if (task.kind === 'interruption') return { ...closeSession(task, now, 'completed'), completedAt: now };
+  return closeSession(task, now, 'paused');
+}
+
+/**
+ * Re-point the running session of a task at another subtask: the time so far
+ * is logged against the old subtask and a new session opens on the new one.
+ */
+function moveRunningSubtask(task, subtaskId, now) {
+  if (task.currentSubtaskId === subtaskId) return task;
+  if (task.status !== 'active' || task.activeStart == null) return { ...task, currentSubtaskId: subtaskId };
+  return { ...closeSession(task, now, 'active'), activeStart: now, currentSubtaskId: subtaskId };
+}
+
+/** Which subtask should receive time when a task starts. */
+function pickSubtask(task, requested) {
+  if (requested !== undefined) {
+    return requested === null || task.subtasks.some((s) => s.id === requested) ? requested : null;
+  }
+  const current = task.subtasks.find((s) => s.id === task.currentSubtaskId);
+  if (current && !current.done) return current.id;
+  return task.subtasks.find((s) => !s.done)?.id ?? null;
+}
+
+function nextOpenSubtask(task, afterId) {
+  const idx = task.subtasks.findIndex((s) => s.id === afterId);
+  const ordered = [...task.subtasks.slice(idx + 1), ...task.subtasks.slice(0, Math.max(0, idx))];
+  return ordered.find((s) => !s.done && s.id !== afterId)?.id ?? null;
 }
 
 function mapTask(state, id, fn) {
@@ -64,6 +130,24 @@ export function reducer(state, action) {
   switch (action.type) {
     case 'HYDRATE':
       return action.state;
+
+    // ---- Clients ---------------------------------------------------------
+    case 'CLIENT_SAVE': {
+      const c = action.client;
+      const exists = state.clients.some((x) => x.id === c.id);
+      return {
+        ...state,
+        clients: exists
+          ? state.clients.map((x) => (x.id === c.id ? { ...x, ...c } : x))
+          : [...state.clients, { ...c, id: c.id ?? uid(), createdAt: action.now }],
+      };
+    }
+    case 'CLIENT_DELETE':
+      return {
+        ...state,
+        clients: state.clients.filter((c) => c.id !== action.id),
+        tasks: state.tasks.map((t) => (t.clientId === action.id ? { ...t, clientId: null } : t)),
+      };
 
     // ---- Templates -------------------------------------------------------
     case 'TEMPLATE_SAVE': {
@@ -81,22 +165,9 @@ export function reducer(state, action) {
 
     // ---- Tasks -----------------------------------------------------------
     case 'TASK_CREATE': {
-      const { title, category, templateId, subtasks, startNow } = action;
-      const task = {
-        id: action.id ?? uid(),
-        title: title.trim(),
-        category: category || 'Other',
-        templateId: templateId ?? null,
-        status: 'idle',
-        subtasks: (subtasks ?? []).map((s) => ({ id: uid(), title: s.title, estimate: Number(s.estimate) || 0, done: false })),
-        logs: [],
-        activeStart: null,
-        notes: '',
-        createdAt: action.now,
-        completedAt: null,
-      };
+      const task = newTask(action, action.now);
       const next = { ...state, tasks: [task, ...state.tasks] };
-      return startNow ? reducer(next, { type: 'TASK_START', id: task.id, now: action.now }) : next;
+      return action.startNow ? reducer(next, { type: 'TASK_START', id: task.id, now: action.now }) : next;
     }
     case 'TASK_UPDATE':
       return mapTask(state, action.id, (t) => ({ ...t, ...action.patch }));
@@ -105,30 +176,41 @@ export function reducer(state, action) {
 
     // ---- Timer engine ----------------------------------------------------
     /**
-     * Start (or switch to) a task. Atomic: any other running task has its
-     * session closed and becomes paused in the same update, so there is never
-     * more than one active timer.
+     * Start (or switch to) a task, optionally on a specific subtask. Atomic:
+     * any other running task has its session closed and becomes paused in the
+     * same update, so there is never more than one active timer. Starting the
+     * already-running task on a different subtask splits its session there.
      */
     case 'TASK_START': {
       const target = state.tasks.find((t) => t.id === action.id);
-      if (!target || target.status === 'active') return state;
+      if (!target) return state;
+      if (target.status === 'active') {
+        if (action.subtaskId === undefined || action.subtaskId === target.currentSubtaskId) return state;
+        return mapTask(state, target.id, (t) => moveRunningSubtask(t, pickSubtask(t, action.subtaskId), action.now));
+      }
       return {
         ...state,
         tasks: state.tasks.map((t) => {
           if (t.id === action.id) {
-            return { ...t, status: 'active', activeStart: action.now, completedAt: null };
+            return {
+              ...t,
+              status: 'active',
+              activeStart: action.now,
+              completedAt: null,
+              currentSubtaskId: pickSubtask(t, action.subtaskId),
+            };
           }
-          if (t.status === 'active' || t.activeStart != null) return closeSession(t, action.now, 'paused');
+          if (t.status === 'active' || t.activeStart != null) return stopRunning(t, action.now);
           return t;
         }),
       };
     }
     case 'TASK_PAUSE':
-      return mapTask(state, action.id, (t) => (t.status === 'active' ? closeSession(t, action.now, 'paused') : t));
+      return mapTask(state, action.id, (t) => (t.status === 'active' ? stopRunning(t, action.now) : t));
     case 'PAUSE_ALL':
       return {
         ...state,
-        tasks: state.tasks.map((t) => (t.status === 'active' ? closeSession(t, action.now, 'paused') : t)),
+        tasks: state.tasks.map((t) => (t.status === 'active' ? stopRunning(t, action.now) : t)),
       };
     case 'TASK_RESET':
       return mapTask(state, action.id, (t) => ({ ...t, status: 'idle', logs: [], activeStart: null, completedAt: null }));
@@ -137,19 +219,65 @@ export function reducer(state, action) {
     case 'TASK_REOPEN':
       return mapTask(state, action.id, (t) => ({ ...t, status: t.logs.length ? 'paused' : 'idle', completedAt: null }));
 
+    // ---- Interruptions (call / break / lunch) ----------------------------
+    /**
+     * Stop whatever is running and track time against a new interruption.
+     * Remembers the interrupted task so it can be resumed when this ends. If
+     * another interruption was running, the original task is carried over.
+     */
+    case 'INTERRUPT_START': {
+      const kind = INTERRUPTIONS[action.interruptType] ? action.interruptType : 'call';
+      const running = state.tasks.find((t) => t.status === 'active');
+      const resumeTaskId = running ? (running.kind === 'interruption' ? running.resumeTaskId : running.id) : null;
+      const task = newTask(
+        {
+          id: action.id,
+          title: action.title?.trim() || INTERRUPTIONS[kind].label,
+          category: INTERRUPTIONS[kind].category,
+          kind: 'interruption',
+          interruptType: kind,
+          resumeTaskId,
+          clientId: action.clientId,
+        },
+        action.now,
+      );
+      return reducer({ ...state, tasks: [task, ...state.tasks] }, { type: 'TASK_START', id: task.id, now: action.now });
+    }
+    case 'INTERRUPT_END': {
+      const it = state.tasks.find((t) => t.id === action.id);
+      if (!it) return state;
+      const ended = mapTask(state, it.id, (t) => ({ ...closeSession(t, action.now, 'completed'), completedAt: action.now }));
+      const resume = action.resume && ended.tasks.find((t) => t.id === it.resumeTaskId && t.status !== 'completed');
+      return resume ? reducer(ended, { type: 'TASK_START', id: resume.id, now: action.now }) : ended;
+    }
+
     // ---- Subtasks & notes -------------------------------------------------
     case 'SUBTASK_TOGGLE':
-      return mapTask(state, action.taskId, (t) => ({
-        ...t,
-        subtasks: t.subtasks.map((s) => (s.id === action.subtaskId ? { ...s, done: !s.done } : s)),
-      }));
+      return mapTask(state, action.taskId, (t) => {
+        const target = t.subtasks.find((s) => s.id === action.subtaskId);
+        if (!target) return t;
+        const toggled = { ...t, subtasks: t.subtasks.map((s) => (s.id === target.id ? { ...s, done: !s.done } : s)) };
+        // Finishing the subtask the timer is on moves the timer to the next open one.
+        if (!target.done && t.currentSubtaskId === target.id && t.status === 'active') {
+          return moveRunningSubtask(toggled, nextOpenSubtask(toggled, target.id), action.now);
+        }
+        return toggled;
+      });
     case 'SUBTASK_ADD':
       return mapTask(state, action.taskId, (t) => ({
         ...t,
-        subtasks: [...t.subtasks, { id: uid(), title: action.title, estimate: Number(action.estimate) || 0, done: false }],
+        subtasks: [...t.subtasks, { id: uid(), title: action.title, estimate: Number(action.estimate) || 0, done: false, notes: '' }],
       }));
     case 'SUBTASK_REMOVE':
-      return mapTask(state, action.taskId, (t) => ({ ...t, subtasks: t.subtasks.filter((s) => s.id !== action.subtaskId) }));
+      return mapTask(state, action.taskId, (t) => {
+        const moved = t.currentSubtaskId === action.subtaskId ? moveRunningSubtask(t, nextOpenSubtask(t, action.subtaskId), action.now) : t;
+        return { ...moved, subtasks: moved.subtasks.filter((s) => s.id !== action.subtaskId) };
+      });
+    case 'SUBTASK_NOTES_SET':
+      return mapTask(state, action.taskId, (t) => ({
+        ...t,
+        subtasks: t.subtasks.map((s) => (s.id === action.subtaskId ? { ...s, notes: action.notes } : s)),
+      }));
     case 'NOTES_SET':
       return mapTask(state, action.id, (t) => ({ ...t, notes: action.notes }));
 
@@ -158,18 +286,23 @@ export function reducer(state, action) {
   }
 }
 
-/** Defensive load: anything malformed falls back to a fresh state. */
+/** Defensive load: anything malformed falls back to a fresh state. Also upgrades v1 data. */
 export function sanitizeState(raw) {
   if (!raw || typeof raw !== 'object' || !Array.isArray(raw.tasks) || !Array.isArray(raw.templates)) return null;
   const tasks = raw.tasks.map((t) => ({
     notes: '',
-    subtasks: [],
     logs: [],
     activeStart: null,
     completedAt: null,
     templateId: null,
     category: 'Other',
+    kind: 'task',
+    interruptType: null,
+    resumeTaskId: null,
+    clientId: null,
+    currentSubtaskId: null,
     ...t,
+    subtasks: (t.subtasks ?? []).map((s) => ({ notes: '', done: false, estimate: 0, ...s })),
   }));
   // Enforce the single-active-timer rule even if storage was edited by hand.
   let seenActive = false;
@@ -181,5 +314,6 @@ export function sanitizeState(raw) {
       t.activeStart = null;
     }
   }
-  return { version: STATE_VERSION, templates: raw.templates, tasks };
+  const clients = Array.isArray(raw.clients) ? raw.clients.filter((c) => c && c.id && c.name) : [];
+  return { version: STATE_VERSION, templates: raw.templates, tasks, clients };
 }

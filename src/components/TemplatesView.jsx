@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Copy, LayoutTemplate, Pencil, Play, Plus, Trash2 } from 'lucide-react';
+import { Copy, LayoutTemplate, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button, Card, EmptyState, Field, Modal, inputClass } from './ui.jsx';
 import { SubtaskEditor, cleanSubtasks } from './SubtaskEditor.jsx';
 import { CATEGORIES } from '../types/index.js';
 import { formatMinutes } from '../utils/time.js';
 import { uid } from '../utils/id.js';
 
-export function TemplatesView({ templates, actions }) {
+export function TemplatesView({ templates, actions, onCreated }) {
   const [editing, setEditing] = useState(null); // template draft or null
   const [confirmDelete, setConfirmDelete] = useState(null);
 
@@ -14,8 +14,10 @@ export function TemplatesView({ templates, actions }) {
   const duplicate = (t) =>
     setEditing({ ...t, id: null, title: `${t.title} (copy)`, subtasks: t.subtasks.map((s) => ({ ...s, id: uid() })) });
 
-  const useTemplate = (t) =>
-    actions.createTask({ title: t.title, category: t.category, templateId: t.id, subtasks: t.subtasks, startNow: true });
+  const useTemplate = (t) => {
+    const id = actions.createTask({ title: t.title, category: t.category, templateId: t.id, subtasks: t.subtasks, startNow: false });
+    onCreated(id, t.title);
+  };
 
   return (
     <div className="space-y-4">
@@ -80,8 +82,8 @@ export function TemplatesView({ templates, actions }) {
                   ))}
                   {t.subtasks.length === 0 && <li className="text-slate-400">No subtasks</li>}
                 </ol>
-                <Button variant="secondary" size="sm" icon={Play} className="mt-4 self-start" onClick={() => useTemplate(t)}>
-                  Create task &amp; start
+                <Button variant="secondary" size="sm" icon={Plus} className="mt-4 self-start" onClick={() => useTemplate(t)}>
+                  Create task
                 </Button>
               </Card>
             );

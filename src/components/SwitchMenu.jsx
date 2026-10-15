@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRightLeft, Play, Plus, Search } from 'lucide-react';
-import { STATUS_STYLES } from './ui.jsx';
+import { STATUS_STYLES, taskColor } from './ui.jsx';
 import { formatClock } from '../utils/time.js';
 import { taskElapsed } from '../utils/sessions.js';
 
 /**
  * One-click task switcher. Picking a task pauses the running one and starts
  * the picked one in a single state update. Typing a name that doesn't exist
- * lets you create an ad-hoc task and start it immediately.
+ * lets you create an ad-hoc task (Enter creates it without starting; the
+ * second option creates and starts it).
  */
-export function SwitchMenu({ tasks, activeTask, now, onSwitch, onQuickCreate, open, setOpen }) {
+export function SwitchMenu({ tasks, clients, activeTask, now, onSwitch, onQuickCreate, open, setOpen }) {
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
   const rootRef = useRef(null);
@@ -19,12 +20,16 @@ export function SwitchMenu({ tasks, activeTask, now, onSwitch, onQuickCreate, op
     const q = query.trim().toLowerCase();
     return tasks
       .filter((t) => t.status !== 'completed' && t.id !== activeTask?.id)
-      .filter((t) => !q || t.title.toLowerCase().includes(q) || t.category.toLowerCase().includes(q))
+      .filter((t) => {
+        if (!q) return true;
+        const client = clients.find((c) => c.id === t.clientId);
+        return t.title.toLowerCase().includes(q) || t.category.toLowerCase().includes(q) || client?.name.toLowerCase().includes(q);
+      })
       .sort((a, b) => lastTouched(b) - lastTouched(a));
-  }, [tasks, activeTask, query]);
+  }, [tasks, clients, activeTask, query]);
 
   const canCreate = query.trim().length > 0 && !tasks.some((t) => t.title.toLowerCase() === query.trim().toLowerCase());
-  const itemCount = candidates.length + (canCreate ? 1 : 0);
+  const itemCount = candidates.length + (canCreate ? 2 : 0);
 
   useEffect(() => {
     if (!open) return;
@@ -40,7 +45,7 @@ export function SwitchMenu({ tasks, activeTask, now, onSwitch, onQuickCreate, op
 
   const choose = (index) => {
     if (index < candidates.length) onSwitch(candidates[index].id);
-    else if (canCreate) onQuickCreate(query.trim());
+    else if (canCreate) onQuickCreate(query.trim(), index > candidates.length);
     setOpen(false);
   };
 
@@ -94,11 +99,11 @@ export function SwitchMenu({ tasks, activeTask, now, onSwitch, onQuickCreate, op
                   onClick={() => choose(i)}
                   className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${cursor === i ? 'bg-emerald-50 dark:bg-emerald-500/10' : ''}`}
                 >
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_STYLES[t.status].dot}`} />
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: taskColor(t, clients) }} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{t.title}</span>
                     <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
-                      {t.category} · {STATUS_STYLES[t.status].label}
+                      {[clients.find((c) => c.id === t.clientId)?.name, t.category, STATUS_STYLES[t.status].label].filter(Boolean).join(' · ')}
                     </span>
                   </span>
                   <span className="tabular font-mono text-xs text-slate-500 dark:text-slate-400">{formatClock(taskElapsed(t, now))}</span>
@@ -106,24 +111,31 @@ export function SwitchMenu({ tasks, activeTask, now, onSwitch, onQuickCreate, op
                 </button>
               </li>
             ))}
-            {canCreate && (
-              <li>
-                <button
-                  type="button"
-                  onMouseEnter={() => setCursor(candidates.length)}
-                  onClick={() => choose(candidates.length)}
-                  className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${cursor === candidates.length ? 'bg-emerald-50 dark:bg-emerald-500/10' : ''}`}
-                >
-                  <Plus className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                  <span>
-                    Create &amp; start <span className="font-semibold">“{query.trim()}”</span>
-                  </span>
-                </button>
-              </li>
-            )}
+            {canCreate &&
+              [
+                { icon: Plus, label: 'Create', offset: 0 },
+                { icon: Play, label: 'Create & start', offset: 1 },
+              ].map(({ icon: Icon, label, offset }) => {
+                const i = candidates.length + offset;
+                return (
+                  <li key={label}>
+                    <button
+                      type="button"
+                      onMouseEnter={() => setCursor(i)}
+                      onClick={() => choose(i)}
+                      className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm ${cursor === i ? 'bg-emerald-50 dark:bg-emerald-500/10' : ''}`}
+                    >
+                      <Icon className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                      <span>
+                        {label} <span className="font-semibold">“{query.trim()}”</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             {itemCount === 0 && (
               <li className="px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
-                No other open tasks. Type a name to create one and start it.
+                No other open tasks. Type a name to create one.
               </li>
             )}
           </ul>
