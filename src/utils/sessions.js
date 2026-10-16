@@ -19,25 +19,37 @@ export function taskSessions(task, now) {
   return sessions;
 }
 
-/** Total tracked milliseconds for a task, live session included. */
-export function taskElapsed(task, now) {
-  let total = 0;
-  for (const l of task.logs) total += l.duration;
-  if (task.activeStart != null) total += Math.max(0, now - task.activeStart);
-  return total;
-}
-
 /**
- * Tracked milliseconds per subtask id (null key = time not on any subtask).
- * The task total is always the sum of these values.
+ * Time per subtask id as actually tracked by the timer (null key = time not
+ * on any subtask). Ignores manual edits.
  * @returns {Map<string | null, number>}
  */
-export function subtaskTotals(task, now) {
+export function trackedSubtaskTotals(task, now) {
   const totals = new Map();
   for (const s of taskSessions(task, now)) {
     totals.set(s.subtaskId, (totals.get(s.subtaskId) ?? 0) + Math.max(0, s.duration));
   }
   return totals;
+}
+
+/**
+ * Time per subtask id, with a completed subtask's manual total (timeOverride)
+ * replacing what the timer tracked. The task total is always the sum of these.
+ * @returns {Map<string | null, number>}
+ */
+export function subtaskTotals(task, now) {
+  const totals = trackedSubtaskTotals(task, now);
+  for (const st of task.subtasks) {
+    if (st.done && st.timeOverride != null) totals.set(st.id, st.timeOverride);
+  }
+  return totals;
+}
+
+/** Total milliseconds for a task, live session and manual subtask edits included. */
+export function taskElapsed(task, now) {
+  let total = 0;
+  for (const ms of subtaskTotals(task, now).values()) total += ms;
+  return total;
 }
 
 /** Sum of subtask estimates, in minutes. */

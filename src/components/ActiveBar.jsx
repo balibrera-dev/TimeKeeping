@@ -90,7 +90,7 @@ export function ActiveBar({ state, activeTask, actions, now, view, setView, them
             <Clock className="h-4 w-4" aria-hidden="true" />
             Today <span className="tabular font-mono font-semibold text-slate-900 dark:text-slate-100">{formatDuration(todayTotal)}</span>
           </div>
-          <Button variant="ghost" size="icon" icon={Settings} onClick={onOpenSettings} aria-label="Settings" title="Settings (AI)" />
+          <Button variant="ghost" size="icon" icon={Settings} onClick={onOpenSettings} aria-label="Settings" title="Settings" />
           <Button variant="ghost" size="icon" icon={theme === 'dark' ? Sun : Moon} onClick={toggleTheme} aria-label="Toggle theme" />
         </div>
       </div>

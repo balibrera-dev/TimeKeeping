@@ -52,7 +52,7 @@ export default function App() {
         {view === 'templates' && <TemplatesView templates={state.templates} actions={actions} onCreated={onCreated} />}
       </main>
       <StartPrompt created={created} hasActive={!!activeTask} onStart={actions.start} onDismiss={dismissCreated} />
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} settings={state.settings} onSave={actions.updateSettings} />
     </div>
   );
 }

@@ -69,6 +69,9 @@ export function useTracker() {
       addSubtask: (taskId, title, estimate) => dispatch({ type: 'SUBTASK_ADD', taskId, title, estimate }),
       removeSubtask: (taskId, subtaskId) => dispatch({ type: 'SUBTASK_REMOVE', taskId, subtaskId, now: now() }),
       setSubtaskNotes: (taskId, subtaskId, notes) => dispatch({ type: 'SUBTASK_NOTES_SET', taskId, subtaskId, notes }),
+      /** Set (ms) or clear (null) the manual total of a completed subtask. */
+      setSubtaskTime: (taskId, subtaskId, ms) => dispatch({ type: 'SUBTASK_TIME_SET', taskId, subtaskId, ms }),
+      updateSettings: (patch) => dispatch({ type: 'SETTINGS_UPDATE', patch }),
       setNotes: (id, notes) => dispatch({ type: 'NOTES_SET', id, notes }),
     };
   }, []);

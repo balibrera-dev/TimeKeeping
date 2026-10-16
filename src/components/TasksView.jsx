@@ -107,7 +107,7 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
       ) : (
         <div className="space-y-3">
           {visible.map((t) => (
-            <TaskCard key={t.id} task={t} now={now} actions={actions} hasActive={!!activeTask} clients={state.clients} onManageClients={onManageClients} />
+            <TaskCard key={t.id} task={t} now={now} actions={actions} hasActive={!!activeTask} clients={state.clients} settings={state.settings} onManageClients={onManageClients} />
           ))}
         </div>
       )}

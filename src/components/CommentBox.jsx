@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { Loader2, Sparkles, Undo2 } from 'lucide-react';
 import { inputClass } from './ui.jsx';
 import { improveComment } from '../utils/ai.js';
+import { AI_ENABLED } from '../config.js';
 
 /**
  * A single comment with debounced autosave, a timestamp helper and an
- * "Improve with AI" button that rewrites it via Claude (undoable).
+ * "Improve with AI" button that rewrites it via Claude (undoable), shown
+ * only when AI_ENABLED is on.
  */
 export function CommentBox({ value: saved, onSave, context, placeholder, rows = 3, autoFocus = false }) {
   const [value, setValue] = useState(saved);
@@ -66,6 +68,7 @@ export function CommentBox({ value: saved, onSave, context, placeholder, rows = 
         <button type="button" onClick={stamp} className="font-medium text-emerald-600 hover:underline dark:text-emerald-400">
           + timestamp
         </button>
+        {AI_ENABLED && (
         <button
           type="button"
           onClick={improve}
@@ -76,6 +79,7 @@ export function CommentBox({ value: saved, onSave, context, placeholder, rows = 
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />}
           {busy ? 'Improving…' : 'Improve with AI'}
         </button>
+        )}
         {previous != null && !busy && (
           <button type="button" onClick={undo} className="inline-flex items-center gap-1 font-medium text-slate-500 hover:underline">
             <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> Undo AI
