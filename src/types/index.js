@@ -75,6 +75,11 @@
 /**
  * @typedef {Object} AppSettings
  * @property {boolean} allowTimeEdits  Whether totals of completed subtasks can be edited by hand.
+ * @property {boolean} estimateAlerts  Ping when the running subtask / task nears its estimate.
+ * @property {number} alertLeadMinutes  How many minutes before the estimate to warn (0 = at the estimate).
+ * @property {EstimateAction} onEstimateReached  'stay' (default) or 'next' to move to the next subtask automatically.
+ * @property {boolean} alertSound  Play a ping with the alert.
+ * @property {boolean} desktopNotifications  Also show a system notification when the tab is in the background.
  */
 
 /**
@@ -94,7 +99,11 @@ export const INTERRUPTIONS = {
   call: { label: 'Call', category: 'Meetings', color: '#8b5cf6', placeholder: 'Who / what is the call about?' },
   break: { label: 'Break', category: 'Break', color: '#64748b', placeholder: 'Break' },
   lunch: { label: 'Lunch', category: 'Break', color: '#f97316', placeholder: 'Lunch' },
+  // Idle time is recorded (and shown on the calendar) but never counts toward tracked totals or exports.
+  idle: { label: 'Idle', category: 'Idle', color: '#94a3b8', placeholder: 'Idle', countsAsWork: false },
 };
+
+/** @typedef {'stay' | 'next'} EstimateAction  What happens when the running subtask reaches its estimate. */
 
 /** Default palette offered when creating a client. */
 export const CLIENT_COLORS = [

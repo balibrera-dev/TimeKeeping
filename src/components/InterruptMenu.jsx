@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { Coffee, Phone, UtensilsCrossed } from 'lucide-react';
+import { Coffee, Hourglass, Phone, UtensilsCrossed } from 'lucide-react';
 import { Button, ClientSelect, inputClass } from './ui.jsx';
 import { INTERRUPTIONS } from '../types/index.js';
 
-const ICONS = { call: Phone, break: Coffee, lunch: UtensilsCrossed };
+const ICONS = { call: Phone, break: Coffee, lunch: UtensilsCrossed, idle: Hourglass };
 
 /**
- * Call / Break / Lunch. One click stops the current work and starts tracking
- * the interruption; the interrupted task is resumed when it ends. A call asks
- * for a name (and optional client) first; break and lunch start immediately.
+ * Call / Break / Lunch / Idle. One click stops the current work and starts
+ * tracking the interruption; the interrupted task is resumed when it ends. A
+ * call asks for a name (and optional client) first; the others start
+ * immediately. Idle is recorded but never counted as work time.
  */
 export function InterruptMenu({ clients, onStart, activeInterruptType }) {
   const [askingCall, setAskingCall] = useState(false);
@@ -43,7 +44,13 @@ export function InterruptMenu({ clients, onStart, activeInterruptType }) {
             disabled={current}
             onClick={() => (type === 'call' ? setAskingCall(!askingCall) : onStart(type, meta.label, null))}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-slate-600 ring-1 ring-inset ring-slate-300 transition-colors hover:bg-white disabled:cursor-default disabled:opacity-50 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800"
-            title={type === 'call' ? 'Start a call: pauses current work and tracks the call' : `Start ${meta.label.toLowerCase()}: pauses current work`}
+            title={
+              type === 'call'
+                ? 'Start a call: pauses current work and tracks the call'
+                : meta.countsAsWork === false
+                  ? 'Go idle: pauses current work; idle time is not counted'
+                  : `Start ${meta.label.toLowerCase()}: pauses current work`
+            }
           >
             <Icon className="h-4 w-4" style={{ color: meta.color }} aria-hidden="true" />
             <span className="hidden lg:inline">{meta.label}</span>

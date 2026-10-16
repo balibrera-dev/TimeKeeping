@@ -3,14 +3,14 @@ import { Briefcase, Check, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button, Card, EmptyState, Field, Modal, inputClass } from './ui.jsx';
 import { CLIENT_COLORS } from '../types/index.js';
 import { formatDuration } from '../utils/time.js';
-import { sessionsForDay, taskElapsed } from '../utils/sessions.js';
+import { sessionsForDay, taskElapsed, workSessions } from '../utils/sessions.js';
 
 export function ClientsView({ state, actions, now }) {
   const [editing, setEditing] = useState(null); // client draft or null
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const stats = useMemo(() => {
-    const today = sessionsForDay(state.tasks, now, now);
+    const today = workSessions(sessionsForDay(state.tasks, now, now));
     const map = new Map();
     for (const c of state.clients) map.set(c.id, { total: 0, today: 0, open: 0 });
     for (const t of state.tasks) {

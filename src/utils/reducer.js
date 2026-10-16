@@ -3,7 +3,14 @@ import { INTERRUPTIONS } from '../types/index.js';
 
 export const STATE_VERSION = 2;
 
-export const DEFAULT_SETTINGS = { allowTimeEdits: true };
+export const DEFAULT_SETTINGS = {
+  allowTimeEdits: true,
+  estimateAlerts: true,
+  alertLeadMinutes: 1,
+  onEstimateReached: 'stay',
+  alertSound: true,
+  desktopNotifications: false,
+};
 
 /** Starter templates so the first run isn't empty. Users can edit or delete them. */
 export function defaultTemplates(now = Date.now()) {

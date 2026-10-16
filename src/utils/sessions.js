@@ -1,4 +1,15 @@
 import { DAY, startOfDay } from './time.js';
+import { INTERRUPTIONS } from '../types/index.js';
+
+/** False for time that is recorded but not counted as work (Idle). */
+export function countsAsWork(task) {
+  return !(task.kind === 'interruption' && INTERRUPTIONS[task.interruptType]?.countsAsWork === false);
+}
+
+/** Only the sessions that count toward tracked totals (drops Idle). */
+export function workSessions(sessions) {
+  return sessions.filter((s) => countsAsWork(s.task));
+}
 
 /**
  * Every session of a task, including the open one (ended at `now`).
