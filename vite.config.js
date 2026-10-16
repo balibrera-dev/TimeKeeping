@@ -4,5 +4,6 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  server: { host: 'localhost', port: 5173, open: true },
+  // host: true listens on the LAN too, so a phone on the same Wi-Fi can open http://<PC-IP>:5173.
+  server: { host: true, port: 5173, open: true },
 });

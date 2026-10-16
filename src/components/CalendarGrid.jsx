@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { taskColor } from './ui.jsx';
 import { DAY, HOUR, addDays, formatClock, formatDuration, formatTimeOfDay, isSameDay, startOfDay } from '../utils/time.js';
-import { sessionsInRange, subtaskTitle } from '../utils/sessions.js';
+import { countsAsWork, sessionsInRange, subtaskTitle, workSessions } from '../utils/sessions.js';
 
 const HOUR_PX = 56;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -34,7 +34,7 @@ export function CalendarGrid({ days, tasks, clients, now, onSelectDay }) {
       <div className="grid border-b border-slate-200 dark:border-slate-800" style={{ gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))` }}>
         <div />
         {days.map((d) => {
-          const total = clipToDay(sessions, d).reduce((sum, s) => sum + s.duration, 0);
+          const total = workSessions(clipToDay(sessions, d)).reduce((sum, s) => sum + s.duration, 0);
           const today = isSameDay(d, now);
           return (
             <button
@@ -114,6 +114,11 @@ function SessionBlock({ session, dayStart, clients, compact }) {
   const top = ((startTime - dayStart) / HOUR) * HOUR_PX;
   const height = Math.max(3, (duration / HOUR) * HOUR_PX);
   const color = taskColor(task, clients);
+  // Idle is drawn hatched and faint: recorded, but not counted as work.
+  const idle = !countsAsWork(task);
+  const background = idle
+    ? `repeating-linear-gradient(135deg, ${color}22 0 6px, transparent 6px 12px)`
+    : `${color}2e`;
   const showText = height >= 22;
   const showTime = height >= 40;
   return (
@@ -121,12 +126,13 @@ function SessionBlock({ session, dayStart, clients, compact }) {
       className={`absolute left-1 right-1 overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-xs text-slate-900 shadow-sm dark:text-slate-100 ${
         live ? 'z-[5] ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-slate-900' : ''
       }`}
-      style={{ top, height, backgroundColor: `${color}2e`, borderLeftColor: color }}
+      style={{ top, height, background, borderLeftColor: color, opacity: idle ? 0.75 : 1 }}
       title={[
         task.title,
         subtask && `Subtask: ${subtask}`,
         `${formatTimeOfDay(startTime)} – ${live ? 'now' : formatTimeOfDay(endTime)} (${formatClock(duration)})`,
         [client?.name, task.category].filter(Boolean).join(' · '),
+        idle && 'Not counted as work time',
       ]
         .filter(Boolean)
         .join('\n')}

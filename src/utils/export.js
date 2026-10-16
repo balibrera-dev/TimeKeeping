@@ -1,11 +1,12 @@
 import { DAY, isoDate, isoLocal, startOfDay } from './time.js';
-import { sessionsInRange, subtaskTitle } from './sessions.js';
+import { sessionsInRange, subtaskTitle, workSessions } from './sessions.js';
 
 /** Flat rows for one day's sessions (open session clipped at `now`). */
 export function dayLogRows(tasks, dayTs, now, clients = []) {
   const start = startOfDay(dayTs);
   const clientName = (id) => clients.find((c) => c.id === id)?.name ?? '';
-  return sessionsInRange(tasks, start, start + DAY, now).map((s) => {
+  // Idle is not work time, so it stays out of timesheet exports.
+  return workSessions(sessionsInRange(tasks, start, start + DAY, now)).map((s) => {
     const subtask = s.task.subtasks.find((st) => st.id === s.subtaskId);
     return {
       date: isoDate(s.startTime),

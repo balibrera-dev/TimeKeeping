@@ -5,7 +5,7 @@ import { SwitchMenu } from './SwitchMenu.jsx';
 import { InterruptMenu } from './InterruptMenu.jsx';
 import { INTERRUPTIONS } from '../types/index.js';
 import { formatClock, formatDuration, formatMinutes } from '../utils/time.js';
-import { sessionsForDay, subtaskTotals, taskElapsed, taskEstimate } from '../utils/sessions.js';
+import { sessionsForDay, subtaskTotals, taskElapsed, taskEstimate, workSessions } from '../utils/sessions.js';
 
 const TABS = [
   { id: 'tasks', label: 'Tasks' },
@@ -17,7 +17,7 @@ const TABS = [
 /** Always-visible header: navigation, today's total, and the active-task strip. */
 export function ActiveBar({ state, activeTask, actions, now, view, setView, theme, toggleTheme, onCreated, onOpenSettings }) {
   const [switchOpen, setSwitchOpen] = useState(false);
-  const todayTotal = sessionsForDay(state.tasks, now, now).reduce((sum, s) => sum + s.duration, 0);
+  const todayTotal = workSessions(sessionsForDay(state.tasks, now, now)).reduce((sum, s) => sum + s.duration, 0);
   const lastPaused = state.tasks
     .filter((t) => t.status === 'paused' && t.kind !== 'interruption' && t.logs.length)
     .sort((a, b) => b.logs[b.logs.length - 1].endTime - a.logs[a.logs.length - 1].endTime)[0];

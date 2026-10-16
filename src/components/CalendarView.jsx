@@ -4,7 +4,7 @@ import { Button } from './ui.jsx';
 import { CalendarGrid } from './CalendarGrid.jsx';
 import { MetricsPanel } from './MetricsPanel.jsx';
 import { addDays, formatDateLong, formatDateShort, isSameDay, startOfDay, startOfWeek } from '../utils/time.js';
-import { sessionsInRange } from '../utils/sessions.js';
+import { sessionsInRange, workSessions } from '../utils/sessions.js';
 import { exportDay } from '../utils/export.js';
 
 export function CalendarView({ tasks, clients, now }) {
@@ -19,7 +19,8 @@ export function CalendarView({ tasks, clients, now }) {
   }, [mode, anchor]);
 
   const rangeEnd = addDays(days[days.length - 1], 1);
-  const sessions = useMemo(() => sessionsInRange(tasks, days[0], rangeEnd, now), [tasks, days, rangeEnd, now]);
+  // Metrics count work only; Idle still shows on the grid.
+  const sessions = useMemo(() => workSessions(sessionsInRange(tasks, days[0], rangeEnd, now)), [tasks, days, rangeEnd, now]);
 
   const step = (dir) => setAnchor((a) => addDays(a, dir * (mode === 'day' ? 1 : 7)));
   const isCurrent = mode === 'day' ? isSameDay(anchor, now) : startOfWeek(anchor) === startOfWeek(now);

@@ -11,6 +11,8 @@ npm install
 npm run dev      # opens http://localhost:5173
 ```
 
+**On your phone (same Wi-Fi):** the dev server also listens on your network. Open `http://<your-PC-IP>:5173` (Vite prints it as *Network*). On Windows, allow Node.js through the firewall if prompted. Notifications don't work on that plain-http address; sound and everything else do.
+
 Other scripts:
 
 ```bash
@@ -26,12 +28,13 @@ npm test         # timer engine / export unit tests (node:test)
 - **Tasks**: create from a template (copies its checklist and estimates, which you can tweak) or ad-hoc. Creating a task does **not** start it: a prompt offers *Start* / *Switch* (or use *Create & start*). Task cards are collapsed by default; expand one for subtasks, comments, client and sessions.
 - **Time per subtask**: click a subtask's name to put the timer on it. Clicking another subtask moves the timer there (the time so far stays on the first one), and clicking a subtask of a paused task switches to that task on that subtask. Each subtask shows tracked time vs. its estimate; the task total is the sum. Checking off the running subtask moves the timer to the next open one.
 - **One-click switch**: the sticky header always shows the active task and subtask. *Switch* (or press <kbd>S</kbd> anywhere) pauses the running timer and starts the chosen task in one atomic update. Type a new name in the switcher to create an ad-hoc task. Only one timer can run at a time.
-- **Call / Break / Lunch**: one click in the header stops current work and tracks the interruption as its own entry (a call asks for a name and optional client). *Back to …* ends it and resumes the task you were on; *End* just stops. Find them under *Calls & breaks* in the task list.
+- **Call / Break / Lunch / Idle**: one click in the header stops current work and tracks the interruption as its own entry (a call asks for a name and optional client). *Back to …* ends it and resumes the task you were on; *End* just stops. Find them under *Calls & breaks* in the task list. **Idle** is recorded (hatched on the calendar) but never counts toward tracked totals or exports.
+- **Estimate alerts**: a ping when the subtask the timer is on (or a task without subtasks) is about to use up its estimate (1 minute before by default). You choose: *Stay on it* (default), *Next subtask*, or *Done & next*. In Settings you can switch to moving to the next subtask automatically (with *Undo*), change the warning time, turn the sound off, and turn on **Windows / desktop notifications** so you see it while the browser is in the background.
 - **Controls**: Start / Pause / Resume / Done / Reset on every task. <kbd>Space</kbd> pauses the active task (or ends a call and resumes), or resumes the last one.
 - **Comments**: one comment per subtask (tasks without subtasks have one task comment), with a one-click timestamp. An optional **Improve with AI** button (off by default, see *Feature flags*) rewrites a comment with Claude, using each user's own Anthropic API key.
 - **Editing completed subtask times**: click the time of a checked-off subtask to type its real total (`1:30`, `90`, `1h 30m`). The task total follows; an asterisk marks edited times and *Reset* goes back to the tracked value. Calendar sessions and the daily export keep what the timer recorded. Turn this off in Settings (gear icon) to lock times.
 - **Calendar**: Outlook-style Day and Week views with your tracked sessions as blocks (labelled with the subtask), a live "now" line, per-day totals, and click-a-day to drill in. Side panel shows total tracked, sessions, per-task and per-client breakdowns, and progress against subtask estimates.
-- **Export**: CSV or JSON of the shown day's sessions (today by default) with client, task, subtask, type (task / call / break / lunch) and comment, for timesheets.
+- **Export**: CSV or JSON of the shown day's sessions (today by default) with client, task, subtask, type (task / call / break / lunch; idle is left out) and comment, for timesheets.
 - **Light / dark theme** toggle.
 
 ## How time is measured
@@ -60,3 +63,5 @@ Copy `.env.example` to `.env.local` and restart the dev server (or rebuild) to c
 Stored under the `balisoft-timekeeping:v1` key in `localStorage` (data from earlier versions is upgraded automatically). AI settings are kept separately under `balisoft-timekeeping:ai`. Clearing site data for `localhost:5173` wipes it, so export regularly if you need a record. Changes made in one tab show up in other open tabs of the app.
 
 If you host the built app (for example on Vercel), nothing changes about storage: there is no server or database, so each person's data lives only in their own browser on their own machine. It isn't shared between users, doesn't sync across devices or browsers, and is lost if they clear site data. The JSON/CSV export is the way to back it up or hand it over.
+
+Each address is its own storage, even on the same PC: `http://localhost:5173`, `http://<your-PC-IP>:5173` and the Vercel URL each have separate data, and so does every browser and device.
