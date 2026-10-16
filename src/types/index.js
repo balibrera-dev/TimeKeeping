@@ -40,6 +40,7 @@
  * @property {number} estimate  Estimate in minutes.
  * @property {boolean} done
  * @property {string} notes  The subtask's single comment.
+ * @property {number | null} [timeOverride]  Manually set total (ms) for a completed subtask; replaces its tracked time.
  */
 
 /**
@@ -69,6 +70,11 @@
  * @property {string} notes  Task-level comment (used when the task has no subtasks).
  * @property {number} createdAt
  * @property {number | null} completedAt
+ */
+
+/**
+ * @typedef {Object} AppSettings
+ * @property {boolean} allowTimeEdits  Whether totals of completed subtasks can be edited by hand.
  */
 
 /**

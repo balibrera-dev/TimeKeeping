@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { initialState, reducer, sanitizeState } from './reducer.js';
 import { taskElapsed, sessionsForDay, subtaskTotals } from './sessions.js';
 import { toCSV, dayLogRows } from './export.js';
+import { parseDuration } from './time.js';
 
 const T0 = new Date(2026, 9, 14, 9, 0, 0).getTime();
 const MIN = 60_000;
@@ -195,4 +196,50 @@ test('sanitizeState upgrades v1 data with clients and subtask comments', () => {
   assert.deepEqual(s.clients, []);
   assert.equal(s.tasks[0].subtasks[0].notes, '');
   assert.equal(s.tasks[0].kind, 'task');
+});
+
+test('completed subtasks can get a manual total that replaces tracked time', () => {
+  let s = withSubtasks();
+  const [a, b] = byId(s, 'r').subtasks;
+  s = reducer(s, { type: 'TASK_START', id: 'r', now: T0 });
+  s = reducer(s, { type: 'TASK_PAUSE', id: 'r', now: T0 + 20 * MIN });
+
+  // Not allowed while the subtask is still open.
+  const open = reducer(s, { type: 'SUBTASK_TIME_SET', taskId: 'r', subtaskId: a.id, ms: 45 * MIN });
+  assert.equal(byId(open, 'r').subtasks[0].timeOverride ?? null, null);
+
+  s = reducer(s, { type: 'SUBTASK_TOGGLE', taskId: 'r', subtaskId: a.id, now: T0 + 20 * MIN });
+  s = reducer(s, { type: 'SUBTASK_TIME_SET', taskId: 'r', subtaskId: a.id, ms: 45 * MIN });
+  const r = byId(s, 'r');
+  assert.equal(subtaskTotals(r, T0 + 30 * MIN).get(a.id), 45 * MIN);
+  assert.equal(subtaskTotals(r, T0 + 30 * MIN).get(b.id) ?? 0, 0);
+  assert.equal(taskElapsed(r, T0 + 30 * MIN), 45 * MIN);
+  // Calendar sessions are untouched.
+  assert.equal(r.logs.reduce((sum, l) => sum + l.duration, 0), 20 * MIN);
+
+  // Reopening the subtask drops the manual total.
+  s = reducer(s, { type: 'SUBTASK_TOGGLE', taskId: 'r', subtaskId: a.id, now: T0 + 30 * MIN });
+  assert.equal(taskElapsed(byId(s, 'r'), T0 + 30 * MIN), 20 * MIN);
+});
+
+test('the setting can lock subtask times', () => {
+  let s = withSubtasks();
+  const [a] = byId(s, 'r').subtasks;
+  s = reducer(s, { type: 'SUBTASK_TOGGLE', taskId: 'r', subtaskId: a.id, now: T0 });
+  s = reducer(s, { type: 'SETTINGS_UPDATE', patch: { allowTimeEdits: false } });
+  s = reducer(s, { type: 'SUBTASK_TIME_SET', taskId: 'r', subtaskId: a.id, ms: 10 * MIN });
+  assert.equal(byId(s, 'r').subtasks[0].timeOverride ?? null, null);
+  assert.equal(sanitizeState(JSON.parse(JSON.stringify(s))).settings.allowTimeEdits, false);
+  assert.equal(sanitizeState({ tasks: [], templates: [] }).settings.allowTimeEdits, true);
+});
+
+test('parseDuration reads common formats', () => {
+  assert.equal(parseDuration('1:30'), 90 * MIN);
+  assert.equal(parseDuration('0:45:30'), 45 * MIN + 30_000);
+  assert.equal(parseDuration('90'), 90 * MIN);
+  assert.equal(parseDuration('1.5h'), 90 * MIN);
+  assert.equal(parseDuration('1h 30m'), 90 * MIN);
+  assert.equal(parseDuration('45m'), 45 * MIN);
+  assert.equal(parseDuration('abc'), null);
+  assert.equal(parseDuration(''), null);
 });

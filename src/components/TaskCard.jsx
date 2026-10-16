@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRightLeft,
   CheckCircle2,
@@ -6,6 +6,7 @@ import {
   ChevronRight,
   CornerDownRight,
   MessageSquare,
+  Pencil,
   Pause,
   Play,
   Plus,
@@ -17,11 +18,11 @@ import {
 import { Button, ClientBadge, ClientSelect, ProgressBar, StatusBadge, inputClass, taskColor } from './ui.jsx';
 import { CommentBox } from './CommentBox.jsx';
 import { INTERRUPTIONS } from '../types/index.js';
-import { formatClock, formatMinutes, formatTimeOfDay } from '../utils/time.js';
-import { subtaskTitle, subtaskTotals, taskElapsed, taskEstimate } from '../utils/sessions.js';
+import { formatClock, formatMinutes, formatTimeOfDay, parseDuration } from '../utils/time.js';
+import { subtaskTitle, subtaskTotals, taskElapsed, taskEstimate, trackedSubtaskTotals } from '../utils/sessions.js';
 
 /** A task row. Collapsed by default; expand for subtasks, comments and sessions. */
-export function TaskCard({ task, now, actions, hasActive, clients, onManageClients }) {
+export function TaskCard({ task, now, actions, hasActive, clients, settings, onManageClients }) {
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(null); // 'reset' | 'delete' | null
   const elapsed = taskElapsed(task, now);
@@ -133,7 +134,7 @@ export function TaskCard({ task, now, actions, hasActive, clients, onManageClien
 
       {open && (
         <div className="grid gap-4 border-t border-slate-100 p-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] dark:border-slate-800">
-          <SubtaskList task={task} now={now} actions={actions} client={client} />
+          <SubtaskList task={task} now={now} actions={actions} client={client} allowTimeEdits={settings?.allowTimeEdits ?? true} />
           <div className="space-y-4">
             {!isInterruption && (
               <div>
@@ -164,11 +165,12 @@ export function TaskCard({ task, now, actions, hasActive, clients, onManageClien
  * Checklist where each subtask carries its own tracked time and one comment.
  * Clicking a subtask's name puts the timer on it (starting or switching the task).
  */
-function SubtaskList({ task, now, actions, client }) {
+function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
   const [title, setTitle] = useState('');
   const [estimate, setEstimate] = useState(30);
   const [commentOpen, setCommentOpen] = useState(null);
   const totals = subtaskTotals(task, now);
+  const tracked = trackedSubtaskTotals(task, now);
   const known = new Set(task.subtasks.map((s) => s.id));
   let unassigned = 0;
   for (const [id, ms] of totals) if (!known.has(id)) unassigned += ms;
@@ -227,13 +229,15 @@ function SubtaskList({ task, now, actions, client }) {
                   )}
                   <span className="truncate">{s.title}</span>
                 </button>
-                <span
-                  className={`tabular shrink-0 font-mono text-xs ${tracking ? 'font-semibold text-emerald-700 dark:text-emerald-400' : over ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}
-                  title={`Tracked ${formatClock(spent)}${s.estimate ? ` of ${formatMinutes(s.estimate)} estimated` : ''}`}
-                >
-                  {spent > 0 ? formatClock(spent) : '–'}
-                  <span className="font-sans font-normal text-slate-400"> / {formatMinutes(s.estimate)}</span>
-                </span>
+                <SubtaskTime
+                  subtask={s}
+                  spent={spent}
+                  tracked={tracked.get(s.id) ?? 0}
+                  tracking={tracking}
+                  over={over}
+                  editable={allowTimeEdits && s.done}
+                  onSave={(ms) => actions.setSubtaskTime(task.id, s.id, ms)}
+                />
                 <button
                   type="button"
                   onClick={() => setCommentOpen(showComment ? null : s.id)}
@@ -331,5 +335,120 @@ function SessionList({ task, now }) {
         })}
       </ul>
     </div>
+  );
+}
+
+/**
+ * A subtask's time against its estimate. On a completed subtask (when the
+ * setting allows it) clicking the time lets you type the real total.
+ */
+function SubtaskTime({ subtask, spent, tracked, tracking, over, editable, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [invalid, setInvalid] = useState(false);
+  const cancelled = useRef(false);
+  const edited = subtask.done && subtask.timeOverride != null;
+
+  useEffect(() => {
+    if (!editable) setEditing(false);
+  }, [editable]);
+
+  const begin = () => {
+    setDraft(formatClock(spent));
+    setInvalid(false);
+    cancelled.current = false;
+    setEditing(true);
+  };
+  const commit = () => {
+    if (cancelled.current) return;
+    const ms = parseDuration(draft);
+    if (ms == null) {
+      setInvalid(true);
+      return;
+    }
+    // Typing back the timer's own value just clears the edit.
+    onSave(Math.round(ms / 1000) === Math.round(tracked / 1000) ? null : ms);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <form
+        className="flex shrink-0 items-center gap-1"
+        onSubmit={(e) => {
+          e.preventDefault();
+          commit();
+        }}
+      >
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setInvalid(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              cancelled.current = true;
+              setEditing(false);
+            }
+          }}
+          onBlur={commit}
+          aria-label={`Total time for ${subtask.title}`}
+          title="e.g. 1:30, 90 (minutes), 1h 30m"
+          className={`${inputClass} h-6 w-24 px-1.5 py-0 font-mono text-xs ${invalid ? 'ring-rose-500 focus:ring-rose-500' : ''}`}
+        />
+        {edited && (
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              cancelled.current = true;
+              onSave(null);
+              setEditing(false);
+            }}
+            className="text-[11px] font-medium text-slate-500 hover:underline"
+            title={`Back to the tracked ${formatClock(tracked)}`}
+          >
+            Reset
+          </button>
+        )}
+      </form>
+    );
+  }
+
+  const label = (
+    <>
+      {spent > 0 ? formatClock(spent) : '–'}
+      {edited && <span className="font-sans text-amber-600 dark:text-amber-400">*</span>}
+      <span className="font-sans font-normal text-slate-400"> / {formatMinutes(subtask.estimate)}</span>
+    </>
+  );
+  const tone = tracking
+    ? 'font-semibold text-emerald-700 dark:text-emerald-400'
+    : over
+      ? 'text-amber-600 dark:text-amber-400'
+      : 'text-slate-500 dark:text-slate-400';
+  const title = edited
+    ? `Edited to ${formatClock(spent)} (timer tracked ${formatClock(tracked)})`
+    : `Tracked ${formatClock(spent)}${subtask.estimate ? ` of ${formatMinutes(subtask.estimate)} estimated` : ''}`;
+
+  if (!editable) {
+    return (
+      <span className={`tabular shrink-0 font-mono text-xs ${tone}`} title={title}>
+        {label}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={begin}
+      className={`tabular group/time inline-flex shrink-0 items-center gap-1 rounded px-1 font-mono text-xs hover:bg-slate-100 dark:hover:bg-slate-800 ${tone}`}
+      title={`${title}. Click to edit.`}
+    >
+      {label}
+      <Pencil className="h-3 w-3 text-slate-400 opacity-0 group-hover/time:opacity-100" aria-hidden="true" />
+    </button>
   );
 }

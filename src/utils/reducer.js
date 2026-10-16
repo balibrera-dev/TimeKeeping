@@ -3,6 +3,8 @@ import { INTERRUPTIONS } from '../types/index.js';
 
 export const STATE_VERSION = 2;
 
+export const DEFAULT_SETTINGS = { allowTimeEdits: true };
+
 /** Starter templates so the first run isn't empty. Users can edit or delete them. */
 export function defaultTemplates(now = Date.now()) {
   const t = (title, category, subtasks) => ({
@@ -40,7 +42,7 @@ export function defaultTemplates(now = Date.now()) {
 
 /** @returns {import('../types').TrackerState} */
 export function initialState(now = Date.now()) {
-  return { version: STATE_VERSION, templates: defaultTemplates(now), tasks: [], clients: [] };
+  return { version: STATE_VERSION, templates: defaultTemplates(now), tasks: [], clients: [], settings: { ...DEFAULT_SETTINGS } };
 }
 
 function newTask(fields, now) {
@@ -256,7 +258,11 @@ export function reducer(state, action) {
       return mapTask(state, action.taskId, (t) => {
         const target = t.subtasks.find((s) => s.id === action.subtaskId);
         if (!target) return t;
-        const toggled = { ...t, subtasks: t.subtasks.map((s) => (s.id === target.id ? { ...s, done: !s.done } : s)) };
+        // Reopening a subtask drops any manual time so tracking picks up from the real total.
+        const toggled = {
+          ...t,
+          subtasks: t.subtasks.map((s) => (s.id === target.id ? { ...s, done: !s.done, timeOverride: s.done ? null : s.timeOverride ?? null } : s)),
+        };
         // Finishing the subtask the timer is on moves the timer to the next open one.
         if (!target.done && t.currentSubtaskId === target.id && t.status === 'active') {
           return moveRunningSubtask(toggled, nextOpenSubtask(toggled, target.id), action.now);
@@ -278,6 +284,17 @@ export function reducer(state, action) {
         ...t,
         subtasks: t.subtasks.map((s) => (s.id === action.subtaskId ? { ...s, notes: action.notes } : s)),
       }));
+    case 'SUBTASK_TIME_SET': {
+      // Manual totals are only for completed subtasks, and only while the setting allows it.
+      if (!(state.settings ?? DEFAULT_SETTINGS).allowTimeEdits) return state;
+      const ms = action.ms == null ? null : Math.max(0, Math.round(action.ms));
+      return mapTask(state, action.taskId, (t) => ({
+        ...t,
+        subtasks: t.subtasks.map((s) => (s.id === action.subtaskId && s.done ? { ...s, timeOverride: ms } : s)),
+      }));
+    }
+    case 'SETTINGS_UPDATE':
+      return { ...state, settings: { ...DEFAULT_SETTINGS, ...state.settings, ...action.patch } };
     case 'NOTES_SET':
       return mapTask(state, action.id, (t) => ({ ...t, notes: action.notes }));
 
@@ -302,7 +319,7 @@ export function sanitizeState(raw) {
     clientId: null,
     currentSubtaskId: null,
     ...t,
-    subtasks: (t.subtasks ?? []).map((s) => ({ notes: '', done: false, estimate: 0, ...s })),
+    subtasks: (t.subtasks ?? []).map((s) => ({ notes: '', done: false, estimate: 0, timeOverride: null, ...s })),
   }));
   // Enforce the single-active-timer rule even if storage was edited by hand.
   let seenActive = false;
@@ -315,5 +332,6 @@ export function sanitizeState(raw) {
     }
   }
   const clients = Array.isArray(raw.clients) ? raw.clients.filter((c) => c && c.id && c.name) : [];
-  return { version: STATE_VERSION, templates: raw.templates, tasks, clients };
+  const settings = { ...DEFAULT_SETTINGS, ...(raw.settings && typeof raw.settings === 'object' ? raw.settings : {}) };
+  return { version: STATE_VERSION, templates: raw.templates, tasks, clients, settings };
 }

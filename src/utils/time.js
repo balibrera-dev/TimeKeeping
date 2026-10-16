@@ -74,3 +74,18 @@ export function isoLocal(ts) {
   const p = (n) => String(n).padStart(2, '0');
   return `${isoDate(ts)} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
+
+/**
+ * Parse a typed duration into ms. Accepts "1:30", "1:30:15", "90" (minutes),
+ * "1.5h", "1h 30m", "45m", "2h". Returns null when it can't be read.
+ */
+export function parseDuration(input) {
+  const s = String(input ?? '').trim().toLowerCase();
+  if (!s) return null;
+  let m = s.match(/^(\d+):([0-5]?\d)(?::([0-5]?\d))?$/);
+  if (m) return (Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3] ?? 0)) * 1000;
+  if (/^\d+(\.\d+)?$/.test(s)) return Math.round(Number(s) * MINUTE);
+  m = s.match(/^(?:(\d+(?:\.\d+)?)\s*h)?\s*(?:(\d+(?:\.\d+)?)\s*m(?:in)?)?$/);
+  if (m && (m[1] || m[2])) return Math.round(Number(m[1] ?? 0) * HOUR + Number(m[2] ?? 0) * MINUTE);
+  return null;
+}
