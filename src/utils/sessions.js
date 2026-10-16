@@ -1,4 +1,15 @@
 import { DAY, startOfDay } from './time.js';
+import { INTERRUPTIONS } from '../types/index.js';
+
+/** Idle time is tracked (calendar, export) but never counts toward totals. */
+export function countsTowardTotal(task) {
+  return !(task.kind === 'interruption' && INTERRUPTIONS[task.interruptType]?.counts === false);
+}
+
+/** Sum of session durations that count toward totals (idle excluded). */
+export function countedTotal(sessions) {
+  return sessions.reduce((sum, s) => sum + (countsTowardTotal(s.task) ? s.duration : 0), 0);
+}
 
 /**
  * Every session of a task, including the open one (ended at `now`).

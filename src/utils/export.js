@@ -1,5 +1,5 @@
 import { DAY, isoDate, isoLocal, startOfDay } from './time.js';
-import { sessionsInRange, subtaskTitle } from './sessions.js';
+import { countsTowardTotal, sessionsInRange, subtaskTitle } from './sessions.js';
 
 /** Flat rows for one day's sessions (open session clipped at `now`). */
 export function dayLogRows(tasks, dayTs, now, clients = []) {
@@ -19,6 +19,7 @@ export function dayLogRows(tasks, dayTs, now, clients = []) {
       end: isoLocal(s.endTime),
       durationMinutes: Math.round((s.duration / 60_000) * 100) / 100,
       running: s.live,
+      counted: countsTowardTotal(s.task),
       comment: subtask ? subtask.notes : s.task.notes,
     };
   });
@@ -30,15 +31,18 @@ function csvCell(v) {
 }
 
 export function toCSV(rows) {
-  const headers = ['date', 'client', 'task', 'subtask', 'type', 'category', 'status', 'start', 'end', 'durationMinutes', 'running', 'comment'];
+  const headers = ['date', 'client', 'task', 'subtask', 'type', 'category', 'status', 'start', 'end', 'durationMinutes', 'running', 'counted', 'comment'];
   const lines = [headers.join(',')];
   for (const r of rows) lines.push(headers.map((h) => csvCell(r[h])).join(','));
   return lines.join('\r\n');
 }
 
 export function toJSON(rows, dayTs) {
-  const totalMinutes = Math.round(rows.reduce((sum, r) => sum + r.durationMinutes, 0) * 100) / 100;
-  return JSON.stringify({ date: isoDate(dayTs), exportedAt: new Date().toISOString(), totalMinutes, sessions: rows }, null, 2);
+  const sum = (list) => Math.round(list.reduce((acc, r) => acc + r.durationMinutes, 0) * 100) / 100;
+  // Idle sessions are listed but left out of the total.
+  const totalMinutes = sum(rows.filter((r) => r.counted !== false));
+  const idleMinutes = sum(rows.filter((r) => r.counted === false));
+  return JSON.stringify({ date: isoDate(dayTs), exportedAt: new Date().toISOString(), totalMinutes, idleMinutes, sessions: rows }, null, 2);
 }
 
 export function downloadFile(filename, content, mime) {

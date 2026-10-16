@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Check, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { BellRing, Check, Eye, EyeOff, Sparkles, Volume2 } from 'lucide-react';
 import { Button, Field, Modal, inputClass } from './ui.jsx';
 import { AI_MODELS, loadAiSettings, saveAiSettings } from '../utils/ai.js';
 import { AI_ENABLED } from '../config.js';
 import { DEFAULT_SETTINGS } from '../utils/reducer.js';
+import { playPing, unlockAudio } from '../utils/sound.js';
+import { notifyStatus, requestNotify, showNotification } from '../utils/notify.js';
+
+const NOTIFY_HELP = {
+  unsupported: 'This browser does not support desktop notifications.',
+  insecure: 'Notifications only work on localhost or https. Open the app on localhost or Vercel to use them (not on the Wi-Fi address).',
+  denied: 'Notifications are blocked for this site. Allow them in the browser’s site settings (lock icon in the address bar), then try again.',
+};
 
 /**
  * App settings. General preferences live in the tracker state; the AI key
@@ -13,14 +21,24 @@ export function SettingsModal({ open, onClose, settings: appSettings, onSave }) 
   const [prefs, setPrefs] = useState({ ...DEFAULT_SETTINGS, ...appSettings });
   const [ai, setAi] = useState(loadAiSettings);
   const [show, setShow] = useState(false);
+  const [notify, setNotify] = useState(notifyStatus);
 
   useEffect(() => {
     if (open) {
       setPrefs({ ...DEFAULT_SETTINGS, ...appSettings });
       setAi(loadAiSettings());
       setShow(false);
+      setNotify(notifyStatus());
     }
   }, [open, appSettings]);
+
+  const toggleNotify = async (on) => {
+    if (!on) return setPrefs((p) => ({ ...p, alertNotify: false }));
+    const status = await requestNotify();
+    setNotify(status);
+    setPrefs((p) => ({ ...p, alertNotify: status === 'granted' }));
+    if (status === 'granted') showNotification('Notifications are on', 'You’ll get a heads-up here when a subtask is about to reach its estimate.', 'test');
+  };
 
   const save = () => {
     onSave(prefs);
@@ -64,6 +82,72 @@ export function SettingsModal({ open, onClose, settings: appSettings, onSave }) 
             </span>
           </span>
         </label>
+
+        <fieldset className="space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+          <legend className="mb-1 text-sm font-semibold">Estimate alerts</legend>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            When the running subtask (or a task with no subtask selected) is about to reach its estimate, you get a prompt to stay on it, move to the
+            next subtask, or pause.
+          </p>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="shrink-0">Alert</span>
+            <span className="w-20 shrink-0">
+              <input
+                type="number"
+                min="0"
+                max="60"
+                className={inputClass}
+                value={prefs.alertLeadMinutes}
+                onChange={(e) => setPrefs((p) => ({ ...p, alertLeadMinutes: Math.max(0, Math.min(60, Number(e.target.value) || 0)) }))}
+              />
+            </span>
+            <span>minutes before the estimate (0 = when it’s reached)</span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              checked={prefs.alertSound}
+              onChange={(e) => setPrefs((p) => ({ ...p, alertSound: e.target.checked }))}
+              className="h-4 w-4 shrink-0 rounded border-slate-300 accent-emerald-600"
+            />
+            <span className="flex-1 text-sm font-medium">Play a ping</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={Volume2}
+              onClick={() => {
+                unlockAudio();
+                playPing();
+              }}
+            >
+              Test
+            </Button>
+          </label>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={prefs.alertNotify && notify === 'granted'}
+              disabled={notify === 'unsupported' || notify === 'insecure'}
+              onChange={(e) => toggleNotify(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-emerald-600"
+            />
+            <span>
+              <span className="flex items-center gap-1.5 text-sm font-medium">
+                <BellRing className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" /> Desktop notification when the app is in the background
+              </span>
+              <span className="block text-xs text-slate-500 dark:text-slate-400">
+                {NOTIFY_HELP[notify] ?? 'Shows in the Windows notification area. Clicking it brings the app back to the front.'}
+              </span>
+            </span>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium">When the estimate is reached</span>
+            <select className={inputClass} value={prefs.onEstimate} onChange={(e) => setPrefs((p) => ({ ...p, onEstimate: e.target.value }))}>
+              <option value="stay">Stay on the subtask (default)</option>
+              <option value="next">Check it off and move to the next subtask automatically</option>
+            </select>
+          </label>
+        </fieldset>
 
         {AI_ENABLED && (
           <div className="space-y-4 border-t border-slate-200 pt-4 dark:border-slate-800">

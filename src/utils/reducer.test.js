@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { initialState, reducer, sanitizeState } from './reducer.js';
-import { taskElapsed, sessionsForDay, subtaskTotals } from './sessions.js';
+import { countedTotal, taskElapsed, sessionsForDay, subtaskTotals } from './sessions.js';
+import { alertLeadMs, estimateTarget } from './alerts.js';
 import { toCSV, dayLogRows } from './export.js';
 import { parseDuration } from './time.js';
 
@@ -242,4 +243,44 @@ test('parseDuration reads common formats', () => {
   assert.equal(parseDuration('45m'), 45 * MIN);
   assert.equal(parseDuration('abc'), null);
   assert.equal(parseDuration(''), null);
+});
+
+// ---- Idle & estimate alerts ---------------------------------------------
+
+test('idle time is tracked but left out of totals', () => {
+  let s = { ...initialState(T0), tasks: [] };
+  s = reducer(s, { type: 'TASK_CREATE', id: 'w', title: 'Work', now: T0 });
+  s = reducer(s, { type: 'TASK_START', id: 'w', now: T0 });
+  s = reducer(s, { type: 'INTERRUPT_START', id: 'i', interruptType: 'idle', now: T0 + 30 * MIN });
+  assert.equal(byId(s, 'i').interruptType, 'idle');
+  s = reducer(s, { type: 'INTERRUPT_END', id: 'i', resume: true, now: T0 + 50 * MIN });
+  assert.equal(byId(s, 'w').status, 'active');
+  const day = sessionsForDay(s.tasks, T0, T0 + 60 * MIN);
+  assert.equal(day.reduce((sum, x) => sum + x.duration, 0), 60 * MIN);
+  assert.equal(countedTotal(day), 40 * MIN);
+});
+
+test('estimate target follows the running subtask', () => {
+  let s = { ...initialState(T0), tasks: [] };
+  s = reducer(s, {
+    type: 'TASK_CREATE',
+    id: 'e',
+    title: 'Est',
+    subtasks: [
+      { title: 'A', estimate: 10 },
+      { title: 'B', estimate: 5 },
+    ],
+    now: T0,
+  });
+  s = reducer(s, { type: 'TASK_START', id: 'e', now: T0 });
+  const a = byId(s, 'e').subtasks[0].id;
+  const t = estimateTarget(byId(s, 'e'), T0 + 8 * MIN);
+  assert.equal(t.subtaskId, a);
+  assert.equal(t.remaining, 2 * MIN);
+  assert.equal(t.hasNext, true);
+  assert.equal(alertLeadMs({ alertLeadMinutes: 2 }, t.estimate), 2 * MIN);
+  assert.equal(alertLeadMs({ alertLeadMinutes: 10 }, 4 * MIN), 2 * MIN);
+  // Paused or interruption tasks have nothing to alert on.
+  s = reducer(s, { type: 'TASK_PAUSE', id: 'e', now: T0 + 9 * MIN });
+  assert.equal(estimateTarget(byId(s, 'e'), T0 + 9 * MIN), null);
 });

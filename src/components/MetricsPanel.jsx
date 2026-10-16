@@ -1,10 +1,13 @@
-import { BarChart3, Briefcase, Clock, ListChecks, Target } from 'lucide-react';
+import { BarChart3, Briefcase, Clock, ListChecks, Moon, Target } from 'lucide-react';
 import { Card, ProgressBar, StatusBadge, taskColor } from './ui.jsx';
 import { formatClock, formatDuration, formatMinutes } from '../utils/time.js';
-import { breakdown, clientBreakdown, taskElapsed, taskEstimate } from '../utils/sessions.js';
+import { breakdown, clientBreakdown, countsTowardTotal, taskElapsed, taskEstimate } from '../utils/sessions.js';
 
 /** Summary metrics for the sessions in the visible range. */
-export function MetricsPanel({ sessions, now, label, clients }) {
+export function MetricsPanel({ sessions: all, now, label, clients }) {
+  // Idle time is left out of every total; it gets its own line instead.
+  const sessions = all.filter((s) => countsTowardTotal(s.task));
+  const idle = all.reduce((sum, s) => sum + (countsTowardTotal(s.task) ? 0 : s.duration), 0);
   const total = sessions.reduce((sum, s) => sum + s.duration, 0);
   const rows = breakdown(sessions);
   const estimated = rows.filter((r) => r.task.kind !== 'interruption' && taskEstimate(r.task) > 0);
@@ -18,6 +21,11 @@ export function MetricsPanel({ sessions, now, label, clients }) {
         <Stat icon={BarChart3} label="Sessions" value={sessions.length} />
         <Stat icon={ListChecks} label="Tasks" value={rows.length} />
       </div>
+      {idle > 0 && (
+        <p className="-mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+          <Moon className="h-3.5 w-3.5" aria-hidden="true" /> {formatDuration(idle)} idle {label}, not counted in Tracked.
+        </p>
+      )}
 
       <Card className="p-4">
         <h3 className="mb-3 text-sm font-semibold">Breakdown</h3>

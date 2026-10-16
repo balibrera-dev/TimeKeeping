@@ -9,11 +9,14 @@ import { StartPrompt } from './components/StartPrompt.jsx';
 import { useTracker } from './hooks/useTracker.js';
 import { useNow } from './hooks/useNow.js';
 import { useTheme } from './hooks/useTheme.js';
+import { useEstimateAlerts } from './hooks/useEstimateAlerts.js';
+import { EstimateAlert } from './components/EstimateAlert.jsx';
 
 export default function App() {
   const { state, actions, activeTask } = useTracker();
   const now = useNow(1000);
   const { theme, toggle } = useTheme();
+  const estimate = useEstimateAlerts({ activeTask, now, settings: state.settings, actions });
   const [view, setView] = useState('tasks');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [created, setCreated] = useState(null); // { id, title } of a task created but not started
@@ -52,6 +55,15 @@ export default function App() {
         {view === 'templates' && <TemplatesView templates={state.templates} actions={actions} onCreated={onCreated} />}
       </main>
       <StartPrompt created={created} hasActive={!!activeTask} onStart={actions.start} onDismiss={dismissCreated} />
+      <EstimateAlert
+        alert={estimate.alert}
+        remaining={estimate.remaining}
+        onStay={estimate.stay}
+        onNext={estimate.next}
+        onPause={estimate.pause}
+        onGoBack={estimate.goBack}
+        onDismiss={estimate.dismiss}
+      />
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} settings={state.settings} onSave={actions.updateSettings} />
     </div>
   );

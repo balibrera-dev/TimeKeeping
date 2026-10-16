@@ -7,7 +7,7 @@
 
 /** @typedef {'task' | 'interruption'} TaskKind */
 
-/** @typedef {'call' | 'break' | 'lunch'} InterruptionType */
+/** @typedef {'call' | 'break' | 'lunch' | 'idle'} InterruptionType */
 
 /**
  * @typedef {Object} Client
@@ -89,11 +89,16 @@ export const TASK_STATUSES = /** @type {const} */ (['idle', 'active', 'paused', 
 
 export const CATEGORIES = ['Development', 'Reporting', 'Data Engineering', 'Analysis', 'Meetings', 'Support', 'Other'];
 
-/** Quick interruptions that stop current work and track their own time. */
+/**
+ * Quick interruptions that stop current work and track their own time.
+ * `counts: false` keeps the time out of tracked totals (it still shows on the
+ * calendar and in exports, typed as such).
+ */
 export const INTERRUPTIONS = {
-  call: { label: 'Call', category: 'Meetings', color: '#8b5cf6', placeholder: 'Who / what is the call about?' },
-  break: { label: 'Break', category: 'Break', color: '#64748b', placeholder: 'Break' },
-  lunch: { label: 'Lunch', category: 'Break', color: '#f97316', placeholder: 'Lunch' },
+  call: { label: 'Call', category: 'Meetings', color: '#8b5cf6', placeholder: 'Who / what is the call about?', counts: true },
+  break: { label: 'Break', category: 'Break', color: '#64748b', placeholder: 'Break', counts: true },
+  lunch: { label: 'Lunch', category: 'Break', color: '#f97316', placeholder: 'Lunch', counts: true },
+  idle: { label: 'Idle', category: 'Idle', color: '#a8a29e', placeholder: 'Idle', counts: false },
 };
 
 /** Default palette offered when creating a client. */

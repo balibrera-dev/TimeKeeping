@@ -3,7 +3,17 @@ import { INTERRUPTIONS } from '../types/index.js';
 
 export const STATE_VERSION = 2;
 
-export const DEFAULT_SETTINGS = { allowTimeEdits: true };
+export const DEFAULT_SETTINGS = {
+  allowTimeEdits: true,
+  /** Ping when the running subtask is about to reach its estimate. */
+  alertSound: true,
+  /** Desktop notification for the same alert (needs browser permission). */
+  alertNotify: false,
+  /** How many minutes before the estimate to alert. */
+  alertLeadMinutes: 2,
+  /** At the estimate: 'stay' keeps the timer running, 'next' checks the subtask off and moves on. */
+  onEstimate: 'stay',
+};
 
 /** Starter templates so the first run isn't empty. Users can edit or delete them. */
 export function defaultTemplates(now = Date.now()) {
