@@ -3,7 +3,7 @@
   "name": "BALISOFT TimeKeeping",
   "description": "Time tracker y multitasking local para devs y analistas BI de BALISOFT: templates, cambio de tarea en un clic, calendario día/semana y export CSV/JSON.",
   "status": "active",
-  "repo_url": "https://github.com/balibrera-dev/timekeeping",
+  "repo_url": "https://github.com/balibrera-dev/TimeKeeping",
   "stack": ["Vite", "React", "Tailwind CSS", "Lucide React", "localStorage", "node:test"],
   "links": [
     { "label": "Local", "url": "http://localhost:5173" },
@@ -13,7 +13,7 @@
     {
       "provider": "github",
       "name": "Repositorio en GitHub",
-      "url": "https://github.com/balibrera-dev/timekeeping",
+      "url": "https://github.com/balibrera-dev/TimeKeeping",
       "account": "balibrera-dev",
       "plan": "",
       "notes": "Público, licencia MIT. Sin CI."
