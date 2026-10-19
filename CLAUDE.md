@@ -40,8 +40,8 @@
 
 ## 6. Project Info File (`project-info.json`)
 
-- `project-info.json` at the repo root is this project's fact sheet (name, status, stack, links, services, accounts).
-- **Keep it updated in the same change:** whenever you add, change or remove a service, link, domain, account or part of the stack, update `project-info.json` in that same commit/PR.
+- `project-info.json` at the repo root is this project's fact sheet (name, status, stack, links, services, accounts) plus a `dev` section with everything a developer needs: Node version, port, scripts, env var names, localStorage keys, deploy flow, key files.
+- **Keep it updated in the same change:** whenever you add, change or remove a service, link, domain, account or part of the stack, update `project-info.json` in that same commit/PR. The same goes for scripts, env vars, ports, deploy flow or anything else in its `dev` section.
 - Never put keys, tokens or passwords in it. `account` holds only an email, username or team.
 - If a value isn't known, leave it as an empty string instead of guessing.
 - `provider` is one of `vercel`, `supabase`, `mongo`, `cloudflare`, `resend`, `github`, `other`; `status` is one of `active`, `paused`, `archived`.
