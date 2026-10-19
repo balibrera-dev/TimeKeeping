@@ -4,10 +4,23 @@
   "description": "Time tracker y multitasking local para devs y analistas BI de BALISOFT: templates, cambio de tarea en un clic, calendario día/semana y export CSV/JSON.",
   "status": "active",
   "repo_url": "https://github.com/balibrera-dev/TimeKeeping",
-  "stack": ["Vite", "React", "Tailwind CSS", "Lucide React", "localStorage", "node:test"],
+  "stack": [
+    "Vite",
+    "React",
+    "Tailwind CSS",
+    "Lucide React",
+    "localStorage",
+    "node:test"
+  ],
   "links": [
-    { "label": "Local", "url": "http://localhost:5173" },
-    { "label": "Producción", "url": "https://balisoft-timekeeping.vercel.app" }
+    {
+      "label": "Local",
+      "url": "http://localhost:5173"
+    },
+    {
+      "label": "Producción",
+      "url": "https://balisoft-timekeeping.vercel.app"
+    }
   ],
   "services": [
     {
@@ -21,8 +34,8 @@
     {
       "provider": "vercel",
       "name": "Proyecto balisoft-timekeeping en Vercel",
-      "url": "",
-      "account": "balibrera-dev",
+      "url": "https://vercel.com/balibrera-devs-projects/balisoft-timekeeping",
+      "account": "balibrera-devs-projects",
       "plan": "hobby",
       "notes": "Conectado al repo: cada merge a main se despliega a producción. El plan Hobby no permite anuncios."
     },
