@@ -37,3 +37,11 @@
 - **Export Utility:** Always include a JSON/CSV export feature for the day's time logs.
 
 ## 5. Directory Structure Reference
+
+## 6. Project Info File (`project-info.json`)
+
+- `project-info.json` at the repo root is this project's fact sheet (name, status, stack, links, services, accounts).
+- **Keep it updated in the same change:** whenever you add, change or remove a service, link, domain, account or part of the stack, update `project-info.json` in that same commit/PR.
+- Never put keys, tokens or passwords in it. `account` holds only an email, username or team.
+- If a value isn't known, leave it as an empty string instead of guessing.
+- `provider` is one of `vercel`, `supabase`, `mongo`, `cloudflare`, `resend`, `github`, `other`; `status` is one of `active`, `paused`, `archived`.

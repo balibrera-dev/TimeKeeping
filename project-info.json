@@ -1,0 +1,52 @@
+{
+  "slug": "balisoft-timekeeping",
+  "name": "BALISOFT TimeKeeping",
+  "description": "Time tracker y multitasking local para devs y analistas BI de BALISOFT: templates, cambio de tarea en un clic, calendario día/semana y export CSV/JSON.",
+  "status": "active",
+  "repo_url": "https://github.com/balibrera-dev/TimeKeeping",
+  "stack": [
+    "Vite",
+    "React",
+    "Tailwind CSS",
+    "Lucide React",
+    "localStorage",
+    "node:test"
+  ],
+  "links": [
+    {
+      "label": "Local",
+      "url": "http://localhost:5173"
+    },
+    {
+      "label": "Producción",
+      "url": "https://balisoft-timekeeping.vercel.app"
+    }
+  ],
+  "services": [
+    {
+      "provider": "github",
+      "name": "Repositorio en GitHub",
+      "url": "https://github.com/balibrera-dev/TimeKeeping",
+      "account": "balibrera-dev",
+      "plan": "",
+      "notes": "Público, licencia MIT. Sin CI."
+    },
+    {
+      "provider": "vercel",
+      "name": "Proyecto balisoft-timekeeping en Vercel",
+      "url": "https://vercel.com/balibrera-devs-projects/balisoft-timekeeping",
+      "account": "balibrera-devs-projects",
+      "plan": "hobby",
+      "notes": "Conectado al repo: cada merge a main se despliega a producción. El plan Hobby no permite anuncios."
+    },
+    {
+      "provider": "other",
+      "name": "Anthropic API (Improve with AI)",
+      "url": "",
+      "account": "",
+      "plan": "",
+      "notes": "Opcional, apagado por defecto (VITE_ENABLE_AI). Cada usuario pone su propia API key en Settings; la app no tiene clave propia."
+    }
+  ],
+  "notes": "No hay backend ni base de datos: los datos viven en el localStorage de cada navegador. En el celular se abre con http://<IP de la PC>:5173 en la misma Wi-Fi."
+}
