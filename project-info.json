@@ -5,10 +5,11 @@
   "status": "active",
   "repo_url": "https://github.com/balibrera-dev/TimeKeeping",
   "stack": [
-    "Vite",
-    "React",
-    "Tailwind CSS",
+    "Vite 8",
+    "React 19",
+    "Tailwind CSS 4",
     "Lucide React",
+    "JavaScript (JSX + JSDoc)",
     "localStorage",
     "node:test"
   ],
@@ -20,6 +21,14 @@
     {
       "label": "Producción",
       "url": "https://balisoft-timekeeping.vercel.app"
+    },
+    {
+      "label": "Repositorio",
+      "url": "https://github.com/balibrera-dev/TimeKeeping"
+    },
+    {
+      "label": "Consola de Vercel",
+      "url": "https://vercel.com/balibrera-devs-projects/balisoft-timekeeping"
     }
   ],
   "services": [
@@ -48,5 +57,42 @@
       "notes": "Opcional, apagado por defecto (VITE_ENABLE_AI). Cada usuario pone su propia API key en Settings; la app no tiene clave propia."
     }
   ],
-  "notes": "No hay backend ni base de datos: los datos viven en el localStorage de cada navegador. En el celular se abre con http://<IP de la PC>:5173 en la misma Wi-Fi."
+  "dev": {
+    "node": ">=20.19 (o 22+)",
+    "package_manager": "npm",
+    "port": 5173,
+    "lan_access": "El dev server escucha en la red (host: true). Desde el celular en la misma Wi-Fi: http://<IP de la PC>:5173 (Vite la muestra como Network). Las notificaciones no andan por http en la IP.",
+    "scripts": {
+      "install": "npm install",
+      "dev": "npm run dev",
+      "build": "npm run build",
+      "preview": "npm run preview",
+      "test": "npm test"
+    },
+    "env_vars": [
+      {
+        "name": "VITE_ENABLE_AI",
+        "file": ".env.local",
+        "default": "false",
+        "notes": "true muestra el botón Improve with AI y los campos de API key en Settings. Ver .env.example."
+      }
+    ],
+    "local_storage_keys": [
+      "balisoft-timekeeping:v1",
+      "balisoft-timekeeping:ai"
+    ],
+    "local_checkout": "C:\\code\\Claude\\Tasks (PC de Bali)",
+    "default_branch": "main",
+    "deploy": "Merge a main → Vercel despliega producción automáticamente. Cada PR tiene su preview de Vercel.",
+    "ci": "",
+    "license": "MIT",
+    "key_files": {
+      "timer_engine": "src/utils/reducer.js",
+      "state_hook": "src/hooks/useTracker.js",
+      "export": "src/utils/export.js",
+      "feature_flags": "src/config.js",
+      "ai_rewrite": "src/utils/ai.js"
+    }
+  },
+  "notes": "No hay backend ni base de datos: los datos viven en el localStorage de cada navegador, y cada dirección (localhost, IP de la PC, Vercel) tiene sus propios datos. El export CSV/JSON es el backup."
 }
