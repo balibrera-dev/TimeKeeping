@@ -47,7 +47,8 @@ Elapsed time is always computed from `Date.now()` timestamps (`sum(closed sessio
 src/
   components/   UI: ActiveBar, SwitchMenu, InterruptMenu, TasksView, TaskCard, CommentBox, ClientsView, TemplatesView,
                 CalendarView, CalendarGrid, MetricsPanel, SettingsModal, StartPrompt, ui primitives
-  hooks/        useTracker (state + persistence + cross-tab sync), useNow (clock), useTheme
+  hooks/        useTracker (state + persistence + cross-tab sync), useNow (clock), useTheme, useAdsConsent, useLegalRoute
+  legal/        Terms, Privacy, Cookie & Ads policy, Disclaimer text
   types/        JSDoc data shapes (Template, Task, TimeLog)
   utils/        reducer (timer engine), sessions (math), export (CSV/JSON), ai (comment rewrite), storage, time formatting
 ```
@@ -57,6 +58,15 @@ src/
 Copy `.env.example` to `.env.local` and restart the dev server (or rebuild) to change them.
 
 - `VITE_ENABLE_AI=true` shows the **Improve with AI** button and the API-key fields in Settings. It's off by default.
+- `VITE_ADSENSE_CLIENT` + `VITE_ADSENSE_SLOT` turn on one Google AdSense unit below the page, the cookie banner, and **Privacy choices** in the footer. Without both, no ad code is loaded. The build also writes `/ads.txt` from the client ID.
+- `VITE_ADS_CONSENT_MODE=google` hides the built-in banner and lets AdSense's certified **Privacy & messaging** consent message ask instead (Google requires a certified one for personalized ads in the EEA, UK and Switzerland). Default `builtin`: ads load only after **Accept**; **Essential only** and a browser Global Privacy Control signal keep ad code out entirely.
+- `VITE_LEGAL_OPERATOR`, `VITE_LEGAL_CONTACT_EMAIL`, `VITE_LEGAL_GOVERNING_LAW` fill in the legal pages.
+
+On Vercel, set these under Project Settings > Environment Variables and redeploy.
+
+## Legal pages
+
+Terms of Use, Privacy Policy, Cookie & Advertising Policy and Disclaimer live in `src/legal/documents.jsx` and open at `#/legal/terms`, `#/legal/privacy`, `#/legal/cookies` and `#/legal/disclaimer`, linked from the footer. They are templates written for this app, not legal advice; have them reviewed before relying on them commercially.
 
 ## Data
 
