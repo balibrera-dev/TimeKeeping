@@ -175,7 +175,7 @@ export function ClientBadge({ client, className = '' }) {
   if (!client) return null;
   return (
     <span
-      className={`inline-flex max-w-[12rem] items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${className}`}
+      className={`inline-flex min-w-0 max-w-[12rem] items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${className}`}
       style={{ backgroundColor: `${client.color}1a`, color: client.color, boxShadow: `inset 0 0 0 1px ${client.color}55` }}
     >
       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: client.color }} />
@@ -188,7 +188,7 @@ export function ClientBadge({ client, className = '' }) {
 export function ClientSelect({ clients, value, onChange, className = '', onManage }) {
   return (
     <div className="flex items-center gap-2">
-      <select className={`${inputClass} ${className}`} value={value ?? ''} onChange={(e) => onChange(e.target.value || null)}>
+      <select className={`${inputClass} min-w-0 ${className}`} value={value ?? ''} onChange={(e) => onChange(e.target.value || null)}>
         <option value="">No client</option>
         {clients.map((c) => (
           <option key={c.id} value={c.id}>
