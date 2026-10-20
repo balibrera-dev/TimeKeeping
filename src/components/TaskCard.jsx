@@ -50,12 +50,26 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
       }`}
       style={{ borderLeftColor: color }}
     >
-      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-        <button type="button" onClick={() => setOpen(!open)} className="flex min-w-0 flex-1 items-center gap-2 text-left" aria-expanded={open}>
-          {open ? <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`truncate font-semibold ${isCompleted ? 'text-slate-500 line-through decoration-slate-300' : ''}`}>{task.title}</span>
+      {/* Phone: title on its own row, then timer + controls. sm+: one row. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 sm:px-4">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="flex min-w-0 basis-full items-start gap-2 text-left sm:flex-1 sm:basis-0 sm:items-center"
+          aria-expanded={open}
+        >
+          {open ? (
+            <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 sm:mt-0" />
+          ) : (
+            <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 sm:mt-0" />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span
+                className={`line-clamp-2 min-w-0 break-words font-semibold sm:line-clamp-1 ${isCompleted ? 'text-slate-500 line-through decoration-slate-300' : ''}`}
+              >
+                {task.title}
+              </span>
               <StatusBadge status={task.status} />
               <ClientBadge client={client} />
               {isInterruption && (
@@ -65,29 +79,31 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
               )}
               {hasComments && <MessageSquare className="h-3.5 w-3.5 text-amber-500" aria-label="Has comments" />}
             </div>
-            <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+            <div className="mt-0.5 text-xs text-slate-500 sm:truncate dark:text-slate-400">
               {task.category}
               {task.subtasks.length > 0 && ` · ${doneCount}/${task.subtasks.length} subtasks`}
               {estimate > 0 && ` · est ${formatMinutes(estimate)}`}
               {` · ${sessionCount} session${sessionCount === 1 ? '' : 's'}`}
             </div>
             {current && !isCompleted && (
-              <div className={`mt-0.5 flex items-center gap-1 truncate text-xs ${isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+              <div className={`mt-0.5 flex min-w-0 items-center gap-1 text-xs ${isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
                 <CornerDownRight className="h-3 w-3 shrink-0" aria-hidden="true" />
-                {isActive ? 'Tracking' : 'Last on'}: <span className="truncate font-medium">{current.title}</span>
+                <span className="shrink-0">{isActive ? 'Tracking' : 'Last on'}:</span>
+                <span className="truncate font-medium">{current.title}</span>
               </div>
             )}
           </div>
         </button>
 
-        <div className="text-right">
-          <div className={`tabular font-mono text-lg font-semibold ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}`}>
+        <div className="flex w-full items-center justify-between gap-2 sm:contents">
+        <div className="sm:text-right">
+          <div className={`tabular font-mono text-base font-semibold sm:text-lg ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}`}>
             {formatClock(elapsed)}
           </div>
-          {estimate > 0 && <ProgressBar value={elapsed} max={estimate * 60_000} className="mt-1 w-28" />}
+          {estimate > 0 && <ProgressBar value={elapsed} max={estimate * 60_000} className="mt-1 w-20 sm:w-28" />}
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-0.5 sm:gap-1.5">
           {isCompleted ? (
             !isInterruption && (
               <Button size="sm" icon={RotateCw} onClick={() => actions.reopen(task.id)}>
@@ -125,17 +141,18 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
             title={confirm === 'delete' ? 'Click again to delete' : 'Delete task'}
           />
         </div>
+        </div>
         {confirm && (
-          <div className="w-full text-right text-xs text-slate-500">
+          <div className="basis-full text-right text-xs text-slate-500">
             {confirm === 'reset' ? 'Click reset again to clear all tracked time for this task.' : 'Click delete again to remove this task and its logs.'}
           </div>
         )}
       </div>
 
       {open && (
-        <div className="grid gap-4 border-t border-slate-100 p-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] dark:border-slate-800">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 border-t border-slate-100 p-3 sm:p-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] dark:border-slate-800">
           <SubtaskList task={task} now={now} actions={actions} client={client} allowTimeEdits={settings?.allowTimeEdits ?? true} />
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             {!isInterruption && (
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Client</h4>
@@ -186,7 +203,7 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
 
   return (
     <div>
-      <h4 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <h4 className="mb-2 flex flex-wrap items-baseline justify-between gap-x-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
         Subtasks
         {task.subtasks.length > 0 && canTrack && <span className="font-normal normal-case tracking-normal text-slate-400">Click a subtask to track time on it</span>}
       </h4>
@@ -227,7 +244,7 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
                   ) : (
                     <Play className="h-3 w-3 shrink-0 text-slate-300 opacity-0 group-hover:opacity-100 dark:text-slate-600" aria-hidden="true" />
                   )}
-                  <span className="truncate">{s.title}</span>
+                  <span className="line-clamp-2 break-words sm:line-clamp-1">{s.title}</span>
                 </button>
                 <SubtaskTime
                   subtask={s}
@@ -250,7 +267,7 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
                 <button
                   type="button"
                   onClick={() => actions.removeSubtask(task.id, s.id)}
-                  className="invisible rounded p-0.5 text-slate-400 hover:text-rose-500 group-hover:visible"
+                  className="invisible rounded p-0.5 text-slate-400 hover:text-rose-500 group-hover:visible pointer-coarse:visible"
                   aria-label="Remove subtask"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -288,12 +305,12 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
         )}
       </ul>
       <form onSubmit={add} className="mt-2 flex gap-2">
-        <input className={`${inputClass} py-1.5`} placeholder="Add subtask…" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <input className={`${inputClass} min-w-0 py-1.5`} placeholder="Add subtask…" value={title} onChange={(e) => setTitle(e.target.value)} />
         <input
           type="number"
           min="0"
           step="5"
-          className={`${inputClass} w-20 py-1.5`}
+          className={`${inputClass} w-20! shrink-0 py-1.5`}
           value={estimate}
           onChange={(e) => setEstimate(Math.max(0, Number(e.target.value)))}
           aria-label="Estimate in minutes"
@@ -315,7 +332,7 @@ function SessionList({ task, now }) {
       <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
         {task.activeStart && (
           <li className="flex justify-between gap-2 font-medium text-emerald-600 dark:text-emerald-400">
-            <span className="truncate">
+            <span className="min-w-0 sm:truncate">
               {formatTimeOfDay(task.activeStart)} – now{current && ` · ${current}`}
             </span>
             <span className="tabular shrink-0 font-mono">{formatClock(now - task.activeStart)}</span>
@@ -325,7 +342,7 @@ function SessionList({ task, now }) {
           const st = subtaskTitle(task, l.subtaskId);
           return (
             <li key={l.startTime} className="flex justify-between gap-2">
-              <span className="truncate">
+              <span className="min-w-0 sm:truncate">
                 {new Date(l.startTime).toLocaleDateString([], { month: 'short', day: 'numeric' })} · {formatTimeOfDay(l.startTime)} – {formatTimeOfDay(l.endTime)}
                 {st && ` · ${st}`}
               </span>

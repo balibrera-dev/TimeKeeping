@@ -171,12 +171,12 @@ function ActiveSummary({ task, clients, now, resumeTask }) {
   const ping = interruption ? 'bg-violet-400' : 'bg-emerald-400';
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-4">
+    <div className="flex min-w-0 flex-1 basis-full items-center gap-3 sm:basis-0 sm:gap-4">
       <span className="relative flex h-2.5 w-2.5 shrink-0">
         <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${ping}`} />
         <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${dot}`} />
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
           {interruption && (
             <span className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ backgroundColor: interruption.color }}>
@@ -184,7 +184,11 @@ function ActiveSummary({ task, clients, now, resumeTask }) {
             </span>
           )}
           <span className="truncate text-sm font-semibold text-slate-900 dark:text-white">{task.title}</span>
-          <ClientBadge client={client} className="hidden sm:inline-flex" />
+          {client && (
+            <span className="hidden min-w-0 sm:inline-flex">
+              <ClientBadge client={client} />
+            </span>
+          )}
         </div>
         <div className="flex min-w-0 items-center gap-1 truncate text-xs text-slate-500 dark:text-slate-400">
           {interruption ? (
@@ -197,11 +201,11 @@ function ActiveSummary({ task, clients, now, resumeTask }) {
             <>
               <CornerDownRight className="h-3 w-3 shrink-0" aria-hidden="true" />
               <span className="truncate font-medium text-emerald-700 dark:text-emerald-400">{current.title}</span>
-              <span className="tabular shrink-0 font-mono">
+              <span className="tabular hidden shrink-0 font-mono sm:inline">
                 {formatClock(currentSpent)}
                 {current.estimate > 0 && ` / ${formatMinutes(current.estimate)}`}
               </span>
-              <span className="shrink-0">· {done}/{task.subtasks.length} done</span>
+              <span className="hidden shrink-0 sm:inline">· {done}/{task.subtasks.length} done</span>
             </>
           ) : (
             <>
@@ -211,8 +215,8 @@ function ActiveSummary({ task, clients, now, resumeTask }) {
           )}
         </div>
       </div>
-      <div className="ml-auto text-right">
-        <div className={`tabular font-mono text-xl font-semibold ${interruption ? 'text-violet-700 dark:text-violet-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+      <div className="ml-auto shrink-0 text-right">
+        <div className={`tabular font-mono text-lg font-semibold sm:text-xl ${interruption ? 'text-violet-700 dark:text-violet-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
           {formatClock(elapsed)}
         </div>
         <div className="tabular text-[11px] text-slate-500 dark:text-slate-400">
