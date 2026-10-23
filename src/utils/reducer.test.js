@@ -243,3 +243,65 @@ test('parseDuration reads common formats', () => {
   assert.equal(parseDuration('abc'), null);
   assert.equal(parseDuration(''), null);
 });
+
+function withOneSubtask() {
+  let s = { ...initialState(T0), tasks: [] };
+  s = reducer(s, { type: 'TASK_CREATE', id: 't1', title: 'A', subtasks: [{ title: 'Get data', estimate: 30 }], now: T0 });
+  return s;
+}
+
+test('tasks and subtasks can be renamed; blank names are ignored', () => {
+  let s = withOneSubtask();
+  const stId = byId(s, 't1').subtasks[0].id;
+  s = reducer(s, { type: 'TASK_RENAME', id: 't1', title: '  Sales report  ' });
+  s = reducer(s, { type: 'SUBTASK_RENAME', taskId: 't1', subtaskId: stId, title: 'Pull data' });
+  assert.equal(byId(s, 't1').title, 'Sales report');
+  assert.equal(byId(s, 't1').subtasks[0].title, 'Pull data');
+  const same = reducer(s, { type: 'TASK_RENAME', id: 't1', title: '   ' });
+  assert.equal(same, s);
+});
+
+test('"not on a subtask" time can be turned into a new subtask, live session included', () => {
+  let s = withOneSubtask();
+  const stId = byId(s, 't1').subtasks[0].id;
+  s = reducer(s, { type: 'TASK_START', id: 't1', subtaskId: null, now: T0 });
+  s = reducer(s, { type: 'TASK_START', id: 't1', subtaskId: stId, now: T0 + 10 * MIN });
+  s = reducer(s, { type: 'TASK_START', id: 't1', subtaskId: null, now: T0 + 30 * MIN });
+  s = reducer(s, { type: 'UNASSIGNED_TO_SUBTASK', taskId: 't1', title: 'Meeting', subtaskId: 'new' });
+
+  const t = byId(s, 't1');
+  assert.equal(t.subtasks.at(-1).title, 'Meeting');
+  assert.equal(t.currentSubtaskId, 'new');
+  const totals = subtaskTotals(t, T0 + 40 * MIN);
+  assert.equal(totals.get('new'), 20 * MIN);
+  assert.equal(totals.get(stId), 20 * MIN);
+  assert.equal(totals.has(null), false);
+  assert.equal(taskElapsed(t, T0 + 40 * MIN), 40 * MIN);
+});
+
+test('removing "not on a subtask" time keeps subtask time and restarts a live unassigned session', () => {
+  let s = withOneSubtask();
+  const stId = byId(s, 't1').subtasks[0].id;
+  s = reducer(s, { type: 'TASK_START', id: 't1', subtaskId: null, now: T0 });
+  s = reducer(s, { type: 'TASK_START', id: 't1', subtaskId: stId, now: T0 + 10 * MIN });
+  s = reducer(s, { type: 'TASK_START', id: 't1', subtaskId: null, now: T0 + 30 * MIN });
+  s = reducer(s, { type: 'UNASSIGNED_REMOVE', taskId: 't1', now: T0 + 40 * MIN });
+
+  const t = byId(s, 't1');
+  assert.equal(t.status, 'active');
+  assert.equal(t.activeStart, T0 + 40 * MIN);
+  assert.equal(taskElapsed(t, T0 + 40 * MIN), 20 * MIN);
+  assert.equal(subtaskTotals(t, T0 + 40 * MIN).get(stId), 20 * MIN);
+});
+
+test('time left on a removed subtask counts as "not on a subtask" and can be removed', () => {
+  let s = withOneSubtask();
+  const stId = byId(s, 't1').subtasks[0].id;
+  s = reducer(s, { type: 'TASK_START', id: 't1', subtaskId: stId, now: T0 });
+  s = reducer(s, { type: 'TASK_PAUSE', id: 't1', now: T0 + 15 * MIN });
+  s = reducer(s, { type: 'SUBTASK_REMOVE', taskId: 't1', subtaskId: stId, now: T0 + 15 * MIN });
+  s = reducer(s, { type: 'UNASSIGNED_REMOVE', taskId: 't1', now: T0 + 20 * MIN });
+  const t = byId(s, 't1');
+  assert.equal(t.logs.length, 0);
+  assert.equal(t.status, 'idle');
+});

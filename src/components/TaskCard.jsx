@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   CornerDownRight,
+  FolderInput,
   MessageSquare,
   Pencil,
   Pause,
@@ -15,7 +16,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { Button, ClientBadge, ClientSelect, ProgressBar, StatusBadge, inputClass, taskColor } from './ui.jsx';
+import { Button, ClientBadge, ClientSelect, InlineEdit, ProgressBar, StatusBadge, inputClass, taskColor } from './ui.jsx';
 import { CommentBox } from './CommentBox.jsx';
 import { INTERRUPTIONS } from '../types/index.js';
 import { formatClock, formatMinutes, formatTimeOfDay, parseDuration } from '../utils/time.js';
@@ -25,6 +26,7 @@ import { subtaskTitle, subtaskTotals, taskElapsed, taskEstimate, trackedSubtaskT
 export function TaskCard({ task, now, actions, hasActive, clients, settings, onManageClients }) {
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(null); // 'reset' | 'delete' | null
+  const [renaming, setRenaming] = useState(false);
   const elapsed = taskElapsed(task, now);
   const estimate = taskEstimate(task);
   const doneCount = task.subtasks.filter((s) => s.done).length;
@@ -52,48 +54,79 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
     >
       {/* Phone: title on its own row, then timer + controls. sm+: one row. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 sm:px-4">
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          className="flex min-w-0 basis-full items-start gap-2 text-left sm:flex-1 sm:basis-0 sm:items-center"
-          aria-expanded={open}
-        >
-          {open ? (
-            <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 sm:mt-0" />
+        <div className="group/title flex min-w-0 basis-full items-start gap-1 sm:flex-1 sm:basis-0 sm:items-center">
+          {renaming ? (
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <Pencil className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+              <InlineEdit
+                value={task.title}
+                onSave={(title) => {
+                  actions.renameTask(task.id, title);
+                  setRenaming(false);
+                }}
+                onCancel={() => setRenaming(false)}
+                aria-label="Task name"
+                className="font-semibold"
+              />
+            </div>
           ) : (
-            <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 sm:mt-0" />
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span
-                className={`line-clamp-2 min-w-0 break-words font-semibold sm:line-clamp-1 ${isCompleted ? 'text-slate-500 line-through decoration-slate-300' : ''}`}
-              >
-                {task.title}
-              </span>
-              <StatusBadge status={task.status} />
-              <ClientBadge client={client} />
-              {isInterruption && (
-                <span className="rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ backgroundColor: color }}>
-                  {INTERRUPTIONS[task.interruptType]?.label}
-                </span>
+            <button
+              type="button"
+              onClick={() => setOpen(!open)}
+              className="flex min-w-0 items-start gap-2 text-left sm:items-center"
+              aria-expanded={open}
+            >
+              {open ? (
+                <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 sm:mt-0" />
+              ) : (
+                <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 sm:mt-0" />
               )}
-              {hasComments && <MessageSquare className="h-3.5 w-3.5 text-amber-500" aria-label="Has comments" />}
-            </div>
-            <div className="mt-0.5 text-xs text-slate-500 sm:truncate dark:text-slate-400">
-              {task.category}
-              {task.subtasks.length > 0 && ` · ${doneCount}/${task.subtasks.length} subtasks`}
-              {estimate > 0 && ` · est ${formatMinutes(estimate)}`}
-              {` · ${sessionCount} session${sessionCount === 1 ? '' : 's'}`}
-            </div>
-            {current && !isCompleted && (
-              <div className={`mt-0.5 flex min-w-0 items-center gap-1 text-xs ${isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                <CornerDownRight className="h-3 w-3 shrink-0" aria-hidden="true" />
-                <span className="shrink-0">{isActive ? 'Tracking' : 'Last on'}:</span>
-                <span className="truncate font-medium">{current.title}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span
+                    className={`line-clamp-2 min-w-0 break-words font-semibold sm:line-clamp-1 ${isCompleted ? 'text-slate-500 line-through decoration-slate-300' : ''}`}
+                  >
+                    {task.title}
+                  </span>
+                  <StatusBadge status={task.status} />
+                  <ClientBadge client={client} />
+                  {isInterruption && (
+                    <span className="rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ backgroundColor: color }}>
+                      {INTERRUPTIONS[task.interruptType]?.label}
+                    </span>
+                  )}
+                  {hasComments && <MessageSquare className="h-3.5 w-3.5 text-amber-500" aria-label="Has comments" />}
+                </div>
+                <div className="mt-0.5 text-xs text-slate-500 sm:truncate dark:text-slate-400">
+                  {task.category}
+                  {task.subtasks.length > 0 && ` · ${doneCount}/${task.subtasks.length} subtasks`}
+                  {estimate > 0 && ` · est ${formatMinutes(estimate)}`}
+                  {` · ${sessionCount} session${sessionCount === 1 ? '' : 's'}`}
+                </div>
+                {current && !isCompleted && (
+                  <div className={`mt-0.5 flex min-w-0 items-center gap-1 text-xs ${isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                    <CornerDownRight className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    <span className="shrink-0">{isActive ? 'Tracking' : 'Last on'}:</span>
+                    <span className="truncate font-medium">{current.title}</span>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </button>
+            </button>
+          )}
+          {!renaming && (
+            <button
+              type="button"
+              onClick={() => setRenaming(true)}
+              className={`shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:opacity-100 pointer-coarse:opacity-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 ${
+                open ? 'opacity-100' : 'opacity-0 group-hover/title:opacity-100'
+              }`}
+              aria-label="Rename task"
+              title="Rename task"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
 
         <div className="flex w-full items-center justify-between gap-2 sm:contents">
         <div className="sm:text-right">
@@ -186,6 +219,7 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
   const [title, setTitle] = useState('');
   const [estimate, setEstimate] = useState(30);
   const [commentOpen, setCommentOpen] = useState(null);
+  const [renamingId, setRenamingId] = useState(null);
   const totals = subtaskTotals(task, now);
   const tracked = trackedSubtaskTotals(task, now);
   const known = new Set(task.subtasks.map((s) => s.id));
@@ -225,27 +259,40 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
                   className="h-4 w-4 shrink-0 rounded border-slate-300 accent-emerald-600"
                   aria-label={`Mark “${s.title}” ${s.done ? 'not done' : 'done'}`}
                 />
-                <button
-                  type="button"
-                  disabled={!canTrack}
-                  onClick={() => actions.start(task.id, s.id)}
-                  className={`flex min-w-0 flex-1 items-center gap-2 rounded text-left text-sm ${canTrack ? 'hover:text-emerald-700 dark:hover:text-emerald-400' : 'cursor-default'} ${
-                    s.done ? 'text-slate-400 line-through' : ''
-                  }`}
-                  title={tracking ? 'Timer is on this subtask' : canTrack ? 'Track time on this subtask' : undefined}
-                >
-                  {tracking ? (
-                    <span className="relative flex h-2 w-2 shrink-0">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                    </span>
-                  ) : isCurrent && canTrack ? (
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" title="Last tracked subtask" />
-                  ) : (
-                    <Play className="h-3 w-3 shrink-0 text-slate-300 opacity-0 group-hover:opacity-100 dark:text-slate-600" aria-hidden="true" />
-                  )}
-                  <span className="line-clamp-2 break-words sm:line-clamp-1">{s.title}</span>
-                </button>
+                {renamingId === s.id ? (
+                  <InlineEdit
+                    value={s.title}
+                    onSave={(title) => {
+                      actions.renameSubtask(task.id, s.id, title);
+                      setRenamingId(null);
+                    }}
+                    onCancel={() => setRenamingId(null)}
+                    aria-label="Subtask name"
+                    className="min-w-0 flex-1 px-2 text-sm"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!canTrack}
+                    onClick={() => actions.start(task.id, s.id)}
+                    className={`flex min-w-0 flex-1 items-center gap-2 rounded text-left text-sm ${canTrack ? 'hover:text-emerald-700 dark:hover:text-emerald-400' : 'cursor-default'} ${
+                      s.done ? 'text-slate-400 line-through' : ''
+                    }`}
+                    title={tracking ? 'Timer is on this subtask' : canTrack ? 'Track time on this subtask' : undefined}
+                  >
+                    {tracking ? (
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                      </span>
+                    ) : isCurrent && canTrack ? (
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" title="Last tracked subtask" />
+                    ) : (
+                      <Play className="h-3 w-3 shrink-0 text-slate-300 opacity-0 group-hover:opacity-100 dark:text-slate-600" aria-hidden="true" />
+                    )}
+                    <span className="line-clamp-2 break-words sm:line-clamp-1">{s.title}</span>
+                  </button>
+                )}
                 <SubtaskTime
                   subtask={s}
                   spent={spent}
@@ -255,6 +302,15 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
                   editable={allowTimeEdits && s.done}
                   onSave={(ms) => actions.setSubtaskTime(task.id, s.id, ms)}
                 />
+                <button
+                  type="button"
+                  onClick={() => setRenamingId(s.id)}
+                  className="rounded p-0.5 text-slate-400 opacity-0 group-hover:opacity-100 hover:text-slate-600 focus-visible:opacity-100 pointer-coarse:opacity-100 dark:hover:text-slate-200"
+                  aria-label="Rename subtask"
+                  title="Rename subtask"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
                 <button
                   type="button"
                   onClick={() => setCommentOpen(showComment ? null : s.id)}
@@ -298,10 +354,11 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
           );
         })}
         {task.subtasks.length > 0 && unassigned > 0 && (
-          <li className="flex items-center justify-between px-1.5 py-1 pl-7 text-xs text-slate-500 dark:text-slate-400">
-            <span>Not on a subtask</span>
-            <span className="tabular font-mono">{formatClock(unassigned)}</span>
-          </li>
+          <UnassignedRow
+            ms={unassigned}
+            onRemove={() => actions.removeUnassigned(task.id)}
+            onMakeSubtask={(title) => actions.unassignedToSubtask(task.id, title)}
+          />
         )}
       </ul>
       <form onSubmit={add} className="mt-2 flex gap-2">
@@ -319,6 +376,68 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
         <Button type="submit" size="icon" variant="secondary" icon={Plus} aria-label="Add subtask" className="h-auto" />
       </form>
     </div>
+  );
+}
+
+/**
+ * Time tracked on the task but not on any subtask (or on a removed one). It
+ * can become a new subtask, or be deleted (two clicks, like deleting a task).
+ */
+function UnassignedRow({ ms, onRemove, onMakeSubtask }) {
+  const [naming, setNaming] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+
+  useEffect(() => {
+    if (!confirm) return;
+    const id = setTimeout(() => setConfirm(false), 3000);
+    return () => clearTimeout(id);
+  }, [confirm]);
+
+  return (
+    <li className="px-1.5 py-1 pl-7 text-xs text-slate-500 dark:text-slate-400">
+      <div className="flex items-center gap-2">
+        {naming ? (
+          <InlineEdit
+            value=""
+            placeholder="Name the new subtask, then press Enter"
+            onSave={(title) => {
+              onMakeSubtask(title);
+              setNaming(false);
+            }}
+            onCancel={() => setNaming(false)}
+            aria-label="New subtask name"
+            className="min-w-0 flex-1 px-2 text-sm"
+          />
+        ) : (
+          <span className="min-w-0 flex-1 truncate">Not on a subtask</span>
+        )}
+        <span className="tabular shrink-0 font-mono">{formatClock(ms)}</span>
+        {!naming && (
+          <>
+            <button
+              type="button"
+              onClick={() => setNaming(true)}
+              className="inline-flex shrink-0 items-center gap-1 rounded px-1 py-0.5 font-medium text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10"
+              title="Move this time into a new subtask"
+            >
+              <FolderInput className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Make subtask</span>
+              <span className="sm:hidden">Subtask</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => (confirm ? (onRemove(), setConfirm(false)) : setConfirm(true))}
+              className={`shrink-0 rounded p-0.5 ${confirm ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400' : 'text-slate-400 hover:text-rose-500'}`}
+              aria-label="Remove time not on a subtask"
+              title={confirm ? 'Click again to delete this time' : 'Remove this time'}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </>
+        )}
+      </div>
+      {confirm && <div className="mt-0.5 text-right text-rose-600 dark:text-rose-400">Click again to delete {formatClock(ms)} from this task.</div>}
+    </li>
   );
 }
 

@@ -126,6 +126,11 @@ function nextOpenSubtask(task, afterId) {
   return ordered.find((s) => !s.done && s.id !== afterId)?.id ?? null;
 }
 
+/** True when a session's time isn't on any current subtask (none, or one that was removed). */
+function isUnassigned(task, subtaskId) {
+  return subtaskId == null || !task.subtasks.some((s) => s.id === subtaskId);
+}
+
 function mapTask(state, id, fn) {
   return { ...state, tasks: state.tasks.map((t) => (t.id === id ? fn(t) : t)) };
 }
@@ -180,6 +185,10 @@ export function reducer(state, action) {
     }
     case 'TASK_UPDATE':
       return mapTask(state, action.id, (t) => ({ ...t, ...action.patch }));
+    case 'TASK_RENAME': {
+      const title = action.title?.trim();
+      return title ? mapTask(state, action.id, (t) => ({ ...t, title })) : state;
+    }
     case 'TASK_DELETE':
       return { ...state, tasks: state.tasks.filter((t) => t.id !== action.id) };
 
@@ -286,6 +295,39 @@ export function reducer(state, action) {
         const moved = t.currentSubtaskId === action.subtaskId ? moveRunningSubtask(t, nextOpenSubtask(t, action.subtaskId), action.now) : t;
         return { ...moved, subtasks: moved.subtasks.filter((s) => s.id !== action.subtaskId) };
       });
+    case 'SUBTASK_RENAME': {
+      const title = action.title?.trim();
+      if (!title) return state;
+      return mapTask(state, action.taskId, (t) => ({
+        ...t,
+        subtasks: t.subtasks.map((s) => (s.id === action.subtaskId ? { ...s, title } : s)),
+      }));
+    }
+
+    // ---- "Not on a subtask" time ------------------------------------------
+    /**
+     * Drop the time that isn't on any subtask. A running session that isn't on
+     * a subtask restarts from `now`, so its time so far is dropped too.
+     */
+    case 'UNASSIGNED_REMOVE':
+      return mapTask(state, action.taskId, (t) => {
+        const logs = t.logs.filter((l) => !isUnassigned(t, l.subtaskId));
+        const restart = t.activeStart != null && isUnassigned(t, t.currentSubtaskId);
+        const status = t.status === 'paused' && logs.length === 0 ? 'idle' : t.status;
+        return { ...t, logs, status, activeStart: restart ? action.now : t.activeStart };
+      });
+    /** Turn the time that isn't on any subtask into a new subtask that owns it. */
+    case 'UNASSIGNED_TO_SUBTASK': {
+      const title = action.title?.trim();
+      if (!title) return state;
+      return mapTask(state, action.taskId, (t) => {
+        const id = action.subtaskId ?? uid();
+        const subtask = { id, title, estimate: Number(action.estimate) || 0, done: false, notes: '', timeOverride: null };
+        const logs = t.logs.map((l) => (isUnassigned(t, l.subtaskId) ? { ...l, subtaskId: id } : l));
+        const currentSubtaskId = t.activeStart != null && isUnassigned(t, t.currentSubtaskId) ? id : t.currentSubtaskId;
+        return { ...t, logs, currentSubtaskId, subtasks: [...t.subtasks, subtask] };
+      });
+    }
     case 'SUBTASK_NOTES_SET':
       return mapTask(state, action.taskId, (t) => ({
         ...t,
