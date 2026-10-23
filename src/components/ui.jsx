@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { INTERRUPTIONS } from '../types/index.js';
 
@@ -202,5 +202,41 @@ export function ClientSelect({ clients, value, onChange, className = '', onManag
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * One-line text editor used for renaming in place. Enter or leaving the field
+ * saves; Escape cancels. A blank value is not saved.
+ */
+export function InlineEdit({ value, onSave, onCancel, className = '', ...props }) {
+  const [draft, setDraft] = useState(value);
+  const done = useRef(false);
+  const finish = (save) => {
+    if (done.current) return;
+    done.current = true;
+    const next = draft.trim();
+    if (save && next && next !== value) onSave(next);
+    else onCancel?.();
+  };
+  return (
+    <input
+      autoFocus
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onFocus={(e) => e.target.select()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          finish(true);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          finish(false);
+        }
+      }}
+      onBlur={() => finish(true)}
+      className={`${inputClass} py-1 ${className}`}
+      {...props}
+    />
   );
 }

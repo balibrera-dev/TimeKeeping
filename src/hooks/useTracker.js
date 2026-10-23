@@ -50,6 +50,7 @@ export function useTracker() {
         return id;
       },
       updateTask: (id, patch) => dispatch({ type: 'TASK_UPDATE', id, patch }),
+      renameTask: (id, title) => dispatch({ type: 'TASK_RENAME', id, title }),
       deleteTask: (id) => dispatch({ type: 'TASK_DELETE', id }),
       /**
        * Start or switch: pauses whatever is running in the same update. Pass a
@@ -68,6 +69,11 @@ export function useTracker() {
       toggleSubtask: (taskId, subtaskId) => dispatch({ type: 'SUBTASK_TOGGLE', taskId, subtaskId, now: now() }),
       addSubtask: (taskId, title, estimate) => dispatch({ type: 'SUBTASK_ADD', taskId, title, estimate }),
       removeSubtask: (taskId, subtaskId) => dispatch({ type: 'SUBTASK_REMOVE', taskId, subtaskId, now: now() }),
+      renameSubtask: (taskId, subtaskId, title) => dispatch({ type: 'SUBTASK_RENAME', taskId, subtaskId, title }),
+      /** Delete the time that isn't on any subtask. */
+      removeUnassigned: (taskId) => dispatch({ type: 'UNASSIGNED_REMOVE', taskId, now: now() }),
+      /** Move the time that isn't on any subtask into a new subtask. */
+      unassignedToSubtask: (taskId, title) => dispatch({ type: 'UNASSIGNED_TO_SUBTASK', taskId, title }),
       setSubtaskNotes: (taskId, subtaskId, notes) => dispatch({ type: 'SUBTASK_NOTES_SET', taskId, subtaskId, notes }),
       /** Set (ms) or clear (null) the manual total of a completed subtask. */
       setSubtaskTime: (taskId, subtaskId, ms) => dispatch({ type: 'SUBTASK_TIME_SET', taskId, subtaskId, ms }),
