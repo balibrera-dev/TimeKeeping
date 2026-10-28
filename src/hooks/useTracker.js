@@ -51,6 +51,8 @@ export function useTracker() {
       },
       updateTask: (id, patch) => dispatch({ type: 'TASK_UPDATE', id, patch }),
       renameTask: (id, title) => dispatch({ type: 'TASK_RENAME', id, title }),
+      /** Save the manual order of the tasks in `ids` (the rest keep their place). */
+      reorderTasks: (ids) => dispatch({ type: 'TASK_REORDER', ids }),
       deleteTask: (id) => dispatch({ type: 'TASK_DELETE', id }),
       /**
        * Start or switch: pauses whatever is running in the same update. Pass a
@@ -70,6 +72,9 @@ export function useTracker() {
       addSubtask: (taskId, title, estimate) => dispatch({ type: 'SUBTASK_ADD', taskId, title, estimate }),
       removeSubtask: (taskId, subtaskId) => dispatch({ type: 'SUBTASK_REMOVE', taskId, subtaskId, now: now() }),
       renameSubtask: (taskId, subtaskId, title) => dispatch({ type: 'SUBTASK_RENAME', taskId, subtaskId, title }),
+      /** Change a subtask's name and/or estimate (minutes); omitted fields stay as they are. */
+      editSubtask: (taskId, subtaskId, { title, estimate }) => dispatch({ type: 'SUBTASK_EDIT', taskId, subtaskId, title, estimate }),
+      reorderSubtasks: (taskId, ids) => dispatch({ type: 'SUBTASK_REORDER', taskId, ids }),
       /** Delete the time that isn't on any subtask. */
       removeUnassigned: (taskId) => dispatch({ type: 'UNASSIGNED_REMOVE', taskId, now: now() }),
       /** Move the time that isn't on any subtask into a new subtask. */

@@ -21,6 +21,8 @@ export function dayLogRows(tasks, dayTs, now, clients = []) {
       durationMinutes: Math.round((s.duration / 60_000) * 100) / 100,
       running: s.live,
       comment: subtask ? subtask.notes : s.task.notes,
+      jiraStory: s.task.jiraStory ?? '',
+      jiraParent: s.task.jiraParent ?? '',
     };
   });
 }
@@ -31,7 +33,7 @@ function csvCell(v) {
 }
 
 export function toCSV(rows) {
-  const headers = ['date', 'client', 'task', 'subtask', 'type', 'category', 'status', 'start', 'end', 'durationMinutes', 'running', 'comment'];
+  const headers = ['date', 'client', 'task', 'subtask', 'type', 'category', 'status', 'start', 'end', 'durationMinutes', 'running', 'comment', 'jiraStory', 'jiraParent'];
   const lines = [headers.join(',')];
   for (const r of rows) lines.push(headers.map((h) => csvCell(r[h])).join(','));
   return lines.join('\r\n');
