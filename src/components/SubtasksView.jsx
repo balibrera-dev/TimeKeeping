@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowRightLeft, ArrowUp, ListChecks, MessageSquare, Pause, Play, Search } from 'lucide-react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { ArrowDown, ArrowRightLeft, ArrowUp, ChevronDown, GripVertical, ListChecks, MessageSquare, Pause, Pencil, Play, Search } from 'lucide-react';
 import { ClientBadge, ClientSelect, EmptyState, ProgressBar, inputClass } from './ui.jsx';
-import { JiraChips } from './Jira.jsx';
-import { DEFAULT_SETTINGS } from '../utils/reducer.js';
+import { JiraChip, JiraDomainHint, JiraKeyInput } from './Jira.jsx';
+import { CommentBox } from './CommentBox.jsx';
+import { useSortable } from '../hooks/useSortable.js';
+import { DEFAULT_SETTINGS, subtaskViewOrder } from '../utils/reducer.js';
 import { subtaskTotals } from '../utils/sessions.js';
 import { formatClock, formatMinutes } from '../utils/time.js';
 
@@ -19,6 +21,7 @@ const MATCHERS = {
 };
 
 const COLUMNS = [
+  { id: 'order', label: 'My order', value: (r) => r.order },
   { id: 'subtask', label: 'Subtask', value: (r) => r.subtask.title.toLowerCase() },
   { id: 'task', label: 'Task', value: (r) => r.taskIndex * 1000 + r.subtaskIndex },
   { id: 'tracked', label: 'Tracked', value: (r) => r.spent, numeric: true },
@@ -29,17 +32,21 @@ const COLUMNS = [
 /**
  * Every subtask of every task in one table, with its task as a column. Click
  * a row's play button (or its name) to put the timer on that subtask; it
- * switches from whatever is running in one click, like the Tasks page.
+ * switches from whatever is running in one click, like the Tasks page. Rows
+ * keep your own order (drag the grip); the pencil opens the subtask's details
+ * (name, estimate, Jira key, comment).
  */
-export function SubtasksView({ state, actions, now, onOpenTasks }) {
+export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings }) {
   const [filter, setFilter] = useState('open');
   const [query, setQuery] = useState('');
   const [clientFilter, setClientFilter] = useState(null);
-  const [sort, setSort] = useState({ id: 'task', dir: 1 });
+  const [sort, setSort] = useState({ id: 'order', dir: 1 });
+  const [editing, setEditing] = useState(null); // subtask id with its details open
   const settings = { ...DEFAULT_SETTINGS, ...state.settings };
   const running = state.tasks.find((t) => t.status === 'active');
 
   const allRows = useMemo(() => {
+    const position = new Map(subtaskViewOrder(state).map((id, i) => [id, i]));
     const rows = [];
     state.tasks.forEach((task, taskIndex) => {
       if (task.kind === 'interruption') return;
@@ -54,6 +61,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks }) {
           client,
           taskIndex,
           subtaskIndex,
+          order: position.get(subtask.id) ?? Infinity,
           spent: totals.get(subtask.id) ?? 0,
           tracking: isCurrent && task.status === 'active',
           last: isCurrent && task.status === 'paused',
@@ -63,7 +71,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks }) {
       });
     });
     return rows;
-  }, [state.tasks, state.clients, now]);
+  }, [state, now]);
 
   const counts = Object.fromEntries(FILTERS.map((f) => [f.id, allRows.filter(MATCHERS[f.id]).length]));
 
@@ -75,10 +83,10 @@ export function SubtasksView({ state, actions, now, onOpenTasks }) {
       r.task.title.toLowerCase().includes(q) ||
       r.task.category.toLowerCase().includes(q) ||
       (r.client?.name.toLowerCase() ?? '').includes(q) ||
-      r.task.jiraStory?.toLowerCase().includes(q) ||
-      r.task.jiraParent?.toLowerCase().includes(q) ||
+      r.task.jira?.toLowerCase().includes(q) ||
+      r.subtask.jira?.toLowerCase().includes(q) ||
       r.subtask.notes?.toLowerCase().includes(q);
-    const col = COLUMNS.find((c) => c.id === sort.id) ?? COLUMNS[1];
+    const col = COLUMNS.find((c) => c.id === sort.id) ?? COLUMNS[0];
     return allRows
       .filter(MATCHERS[filter])
       .filter((r) => !clientFilter || r.task.clientId === clientFilter)
@@ -86,17 +94,33 @@ export function SubtasksView({ state, actions, now, onOpenTasks }) {
       .sort((a, b) => {
         const va = col.value(a);
         const vb = col.value(b);
-        return (va < vb ? -1 : va > vb ? 1 : 0) * sort.dir || a.taskIndex - b.taskIndex || a.subtaskIndex - b.subtaskIndex;
+        return (va < vb ? -1 : va > vb ? 1 : 0) * sort.dir || a.order - b.order;
       });
   }, [allRows, filter, query, clientFilter, sort]);
 
+  // Dragging works in your own order; sorted by a column, the grips hide.
+  const manual = sort.id === 'order';
+  const sortable = useSortable(
+    rows.map((r) => r.subtask.id),
+    actions.reorderSubtaskView,
+  );
+  const shown = manual ? sortable.arrange(rows.map((r) => ({ ...r, id: r.subtask.id }))) : rows;
+  const canDrag = manual && rows.length > 1;
+  const toggleEdit = (id) => setEditing((e) => (e === id ? null : id));
+
   const totals = rows.reduce((acc, r) => ({ spent: acc.spent + r.spent, estimate: acc.estimate + (Number(r.subtask.estimate) || 0) }), { spent: 0, estimate: 0 });
-  const toggleSort = (id) => setSort((s) => (s.id === id ? { id, dir: -s.dir } : { id, dir: COLUMNS.find((c) => c.id === id)?.numeric ? -1 : 1 }));
+  const toggleSort = (id) =>
+    setSort((s) => (id === 'order' ? { id, dir: 1 } : s.id === id ? { id, dir: -s.dir } : { id, dir: COLUMNS.find((c) => c.id === id)?.numeric ? -1 : 1 }));
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="mr-auto text-xl font-semibold">Subtasks</h1>
+        {!manual && (
+          <button type="button" onClick={() => toggleSort('order')} className="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400">
+            Back to my order
+          </button>
+        )}
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input className={`${inputClass} w-56 pl-8`} placeholder="Search subtasks, tasks, Jira" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -141,15 +165,17 @@ export function SubtasksView({ state, actions, now, onOpenTasks }) {
         <>
           {/* Phone: one card per subtask. */}
           <ul className="space-y-2 md:hidden">
-            {rows.map((r) => (
+            {shown.map((r) => (
               <li
                 key={r.key}
+                ref={sortable.register(r.subtask.id)}
                 className={`rounded-xl border border-l-4 bg-white p-3 dark:bg-slate-900 ${
                   r.tracking ? 'border-emerald-200 ring-1 ring-emerald-200 dark:border-emerald-900 dark:ring-emerald-900' : 'border-slate-200 dark:border-slate-800'
-                }`}
+                } ${sortable.draggingId === r.subtask.id ? 'relative z-10 shadow-lg ring-2 ring-emerald-400 dark:ring-emerald-600' : ''}`}
                 style={{ borderLeftColor: r.client?.color ?? '#94a3b8' }}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2">
+                  {canDrag && <Grip handle={sortable.handleProps(r.subtask.id)} className="mt-2" />}
                   <TrackButton row={r} running={running} actions={actions} />
                   <div className="min-w-0 flex-1">
                     <SubtaskName row={r} actions={actions} />
@@ -157,14 +183,20 @@ export function SubtasksView({ state, actions, now, onOpenTasks }) {
                       <span className="min-w-0 break-words">{r.task.title}</span>
                       <ClientBadge client={r.client} />
                     </div>
-                    <JiraChips task={r.task} domain={settings.jiraDomain} className="mt-1" />
+                    <JiraCell row={r} domain={settings.jiraDomain} className="mt-1" />
                     <div className="mt-2 flex items-center gap-2">
                       <TimeCell row={r} />
                       <ProgressBar value={r.spent} max={r.subtask.estimate * 60_000} className="max-w-28 flex-1" />
                     </div>
                   </div>
-                  <DoneBox row={r} actions={actions} />
+                  <div className="flex flex-col items-center gap-2">
+                    <DoneBox row={r} actions={actions} />
+                    <EditButton row={r} open={editing === r.subtask.id} onClick={() => toggleEdit(r.subtask.id)} />
+                  </div>
                 </div>
+                {editing === r.subtask.id && (
+                  <SubtaskDetails row={r} actions={actions} domain={settings.jiraDomain} onOpenSettings={onOpenSettings} className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800" />
+                )}
               </li>
             ))}
           </ul>
@@ -174,6 +206,11 @@ export function SubtasksView({ state, actions, now, onOpenTasks }) {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-900/60">
                 <tr>
+                  {canDrag && (
+                    <th className="w-6 py-2 pl-2 font-semibold">
+                      <span className="sr-only">Order</span>
+                    </th>
+                  )}
                   <th className="w-12 px-3 py-2 font-semibold">
                     <span className="sr-only">Track</span>
                   </th>
@@ -184,61 +221,84 @@ export function SubtasksView({ state, actions, now, onOpenTasks }) {
                   <SortHeader id="estimate" sort={sort} onSort={toggleSort} align="right" />
                   <SortHeader id="progress" sort={sort} onSort={toggleSort} />
                   <th className="w-14 px-3 py-2 text-center font-semibold">Done</th>
+                  <th className="w-10 px-2 py-2">
+                    <span className="sr-only">Edit</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {rows.map((r) => (
-                  <tr key={r.key} className={r.tracking ? 'bg-emerald-50/70 dark:bg-emerald-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'}>
-                    <td className="px-3 py-2">
-                      <TrackButton row={r} running={running} actions={actions} />
-                    </td>
-                    <td className="max-w-xs px-3 py-2">
-                      <SubtaskName row={r} actions={actions} />
-                    </td>
-                    <td className="max-w-xs px-3 py-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-slate-700 dark:text-slate-300" title={r.task.title}>
+                {shown.map((r) => (
+                  <Fragment key={r.key}>
+                    <tr
+                      ref={sortable.register(r.subtask.id)}
+                      className={`${r.tracking ? 'bg-emerald-50/70 dark:bg-emerald-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'} ${
+                        sortable.draggingId === r.subtask.id ? 'relative z-10 bg-white shadow-lg outline-2 outline-emerald-400 dark:bg-slate-800' : ''
+                      }`}
+                    >
+                      {canDrag && (
+                        <td className="py-2 pl-2">
+                          <Grip handle={sortable.handleProps(r.subtask.id)} />
+                        </td>
+                      )}
+                      <td className="px-3 py-2">
+                        <TrackButton row={r} running={running} actions={actions} />
+                      </td>
+                      <td className="max-w-xs px-3 py-2">
+                        <SubtaskName row={r} actions={actions} />
+                      </td>
+                      <td className="max-w-xs px-3 py-2">
+                        <div className="truncate text-slate-700 dark:text-slate-300" title={r.task.title}>
                           {r.task.title}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                          <ClientBadge client={r.client} />
+                          <span className="truncate">{r.task.category}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <JiraCell row={r} domain={settings.jiraDomain} className="flex-col items-start" />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <span className={`tabular font-mono text-xs ${r.tracking ? 'font-semibold text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}`}>
+                          {r.spent > 0 ? formatClock(r.spent) : '–'}
                         </span>
-                      </div>
-                      <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                        <ClientBadge client={r.client} />
-                        <span className="truncate">{r.task.category}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <JiraChips task={r.task} domain={settings.jiraDomain} className="flex-col items-start" />
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <span className={`tabular font-mono text-xs ${r.tracking ? 'font-semibold text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}`}>
-                        {r.spent > 0 ? formatClock(r.spent) : '–'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-right text-xs text-slate-500 dark:text-slate-400">{r.subtask.estimate > 0 ? formatMinutes(r.subtask.estimate) : '–'}</td>
-                    <td className="px-3 py-2">
-                      <Progress row={r} />
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <DoneBox row={r} actions={actions} />
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-3 py-2 text-right text-xs text-slate-500 dark:text-slate-400">{r.subtask.estimate > 0 ? formatMinutes(r.subtask.estimate) : '–'}</td>
+                      <td className="px-3 py-2">
+                        <Progress row={r} />
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <DoneBox row={r} actions={actions} />
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <EditButton row={r} open={editing === r.subtask.id} onClick={() => toggleEdit(r.subtask.id)} />
+                      </td>
+                    </tr>
+                    {editing === r.subtask.id && (
+                      <tr className="bg-slate-50/70 dark:bg-slate-900/60">
+                        <td colSpan={canDrag ? 10 : 9} className="px-3 py-3">
+                          <SubtaskDetails row={r} actions={actions} domain={settings.jiraDomain} onOpenSettings={onOpenSettings} className="md:grid-cols-2" />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
               <tfoot className="border-t border-slate-200 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
                 <tr>
-                  <td />
+                  <td colSpan={canDrag ? 2 : 1} />
                   <td className="px-3 py-2 font-medium" colSpan={3}>
                     {rows.length} subtask{rows.length === 1 ? '' : 's'}
                   </td>
                   <td className="tabular px-3 py-2 text-right font-mono">{formatClock(totals.spent)}</td>
                   <td className="px-3 py-2 text-right">{formatMinutes(totals.estimate)}</td>
-                  <td colSpan={2} />
+                  <td colSpan={3} />
                 </tr>
               </tfoot>
             </table>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Tasks without subtasks aren’t listed here. Calls and breaks stay on the Tasks page.
+            {manual ? 'Drag the grip to put subtasks in your own order. ' : ''}Tasks without subtasks aren’t listed here. Calls and breaks stay on the Tasks page.
           </p>
         </>
       )}
@@ -347,5 +407,115 @@ function DoneBox({ row, actions }) {
       className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 accent-emerald-600 disabled:opacity-50 md:mt-0"
       aria-label={`Mark “${row.subtask.title}” ${row.subtask.done ? 'not done' : 'done'}`}
     />
+  );
+}
+
+function Grip({ handle, className = '' }) {
+  return (
+    <button
+      type="button"
+      {...handle}
+      className={`flex h-6 w-4 shrink-0 cursor-grab items-center justify-center rounded text-slate-300 hover:text-slate-500 active:cursor-grabbing dark:text-slate-600 dark:hover:text-slate-400 ${className}`}
+      aria-label="Drag to reorder subtasks (or use the up and down arrow keys)"
+      title="Drag to reorder"
+    >
+      <GripVertical className="h-4 w-4" aria-hidden="true" />
+    </button>
+  );
+}
+
+/** The subtask's own Jira key, then its task's (labeled), when set. */
+function JiraCell({ row, domain, className = '' }) {
+  if (!row.subtask.jira && !row.task.jira) return null;
+  return (
+    <div className={`flex flex-wrap gap-1 ${className}`}>
+      {row.subtask.jira && <JiraChip issueKey={row.subtask.jira} domain={domain} />}
+      {row.task.jira && <JiraChip issueKey={row.task.jira} label="Task" domain={domain} />}
+    </div>
+  );
+}
+
+function EditButton({ row, open, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={open}
+      className={`rounded p-1 ${open ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800'}`}
+      aria-label={`Edit “${row.subtask.title}”`}
+      title="Edit name, estimate, Jira key and comment"
+    >
+      {open ? <ChevronDown className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+    </button>
+  );
+}
+
+/** Name, estimate, Jira key and comment of one subtask, saved as you go. */
+function SubtaskDetails({ row, actions, domain, onOpenSettings, className = '' }) {
+  const { task, subtask } = row;
+  const [title, setTitle] = useState(subtask.title);
+  const [estimate, setEstimate] = useState(String(subtask.estimate ?? 0));
+  useEffect(() => setTitle(subtask.title), [subtask.title]);
+  useEffect(() => setEstimate(String(subtask.estimate ?? 0)), [subtask.estimate]);
+
+  const saveTitle = () => {
+    const name = title.trim();
+    if (!name) setTitle(subtask.title);
+    else if (name !== subtask.title) actions.editSubtask(task.id, subtask.id, { title: name });
+  };
+  const saveEstimate = () => {
+    const minutes = Math.max(0, Math.round(Number(estimate) || 0));
+    setEstimate(String(minutes));
+    if (minutes !== subtask.estimate) actions.editSubtask(task.id, subtask.id, { estimate: minutes });
+  };
+  const onEnter = (save) => (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      save();
+    }
+  };
+
+  return (
+    <div className={`grid gap-3 ${className}`}>
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <label className="min-w-0 flex-1 basis-48">
+            <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Name</span>
+            <input className={`${inputClass} py-1.5`} value={title} onChange={(e) => setTitle(e.target.value)} onBlur={saveTitle} onKeyDown={onEnter(saveTitle)} />
+          </label>
+          <label className="w-28">
+            <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Estimate (min)</span>
+            <input
+              type="number"
+              min="0"
+              step="5"
+              className={`${inputClass} py-1.5`}
+              value={estimate}
+              onChange={(e) => setEstimate(e.target.value)}
+              onBlur={saveEstimate}
+              onKeyDown={onEnter(saveEstimate)}
+            />
+          </label>
+        </div>
+        <div>
+          <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Jira</span>
+          <JiraKeyInput label="Subtask Jira key" compact value={subtask.jira ?? ''} domain={domain} onSave={(jira) => actions.editSubtask(task.id, subtask.id, { jira })} />
+          {!domain && (
+            <div className="mt-1">
+              <JiraDomainHint onOpenSettings={onOpenSettings} />
+            </div>
+          )}
+        </div>
+      </div>
+      <div>
+        <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Comment</span>
+        <CommentBox
+          value={subtask.notes ?? ''}
+          onSave={(notes) => actions.setSubtaskNotes(task.id, subtask.id, notes)}
+          context={{ task: task.title, subtask: subtask.title, client: row.client?.name }}
+          placeholder={`Comment on “${subtask.title}”…`}
+        />
+      </div>
+    </div>
   );
 }

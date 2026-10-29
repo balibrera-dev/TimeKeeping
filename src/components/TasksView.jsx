@@ -42,9 +42,8 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
       t.category.toLowerCase().includes(q) ||
       clientName(t).includes(q) ||
       t.notes.toLowerCase().includes(q) ||
-      t.jiraStory?.toLowerCase().includes(q) ||
-      t.jiraParent?.toLowerCase().includes(q) ||
-      t.subtasks.some((s) => s.title.toLowerCase().includes(q) || s.notes?.toLowerCase().includes(q));
+      t.jira?.toLowerCase().includes(q) ||
+      t.subtasks.some((s) => s.title.toLowerCase().includes(q) || s.notes?.toLowerCase().includes(q) || s.jira?.toLowerCase().includes(q));
     // Tasks keep the order you drag them into (their order in storage). The
     // running task can be pinned on top (setting), and completed ones go last.
     return state.tasks

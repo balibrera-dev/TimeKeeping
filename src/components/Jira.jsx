@@ -1,12 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { inputClass } from './ui.jsx';
 import { jiraIssueUrl, parseIssueKey } from '../utils/jira.js';
-
-export const JIRA_FIELDS = [
-  { key: 'jiraStory', label: 'Story' },
-  { key: 'jiraParent', label: 'Parent' },
-];
 
 /** One issue key as a chip; a link that opens Jira when the domain is set. */
 export function JiraChip({ label, issueKey, domain, className = '' }) {
@@ -14,7 +9,7 @@ export function JiraChip({ label, issueKey, domain, className = '' }) {
   const base = `inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px] font-medium ring-1 ring-inset ${className}`;
   const text = (
     <>
-      <span className="font-sans font-normal text-slate-500 dark:text-slate-400">{label}</span>
+      {label && <span className="font-sans font-normal text-slate-500 dark:text-slate-400">{label}</span>}
       <span className="truncate">{issueKey}</span>
     </>
   );
@@ -39,44 +34,29 @@ export function JiraChip({ label, issueKey, domain, className = '' }) {
   );
 }
 
-/** The task's Story / Parent chips, or nothing when neither is set. */
-export function JiraChips({ task, domain, className = '' }) {
-  const fields = JIRA_FIELDS.filter((f) => task[f.key]);
-  if (!fields.length) return null;
+/** Hint shown when no Jira domain is set yet. */
+export function JiraDomainHint({ onOpenSettings }) {
   return (
-    <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
-      {fields.map((f) => (
-        <JiraChip key={f.key} label={f.label} issueKey={task[f.key]} domain={domain} />
-      ))}
-    </div>
-  );
-}
-
-/** Story and Parent inputs for a task, each with a button that opens the issue. */
-export function JiraFields({ task, domain, onChange, onOpenSettings }) {
-  return (
-    <div className="space-y-2">
-      {JIRA_FIELDS.map((f) => (
-        <JiraKeyInput key={f.key} label={f.label} value={task[f.key] ?? ''} domain={domain} onSave={(v) => onChange({ [f.key]: v })} />
-      ))}
-      {!domain && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          To open issues from here,{' '}
-          {onOpenSettings ? (
-            <button type="button" onClick={onOpenSettings} className="font-medium text-emerald-600 hover:underline dark:text-emerald-400">
-              add your Jira domain in Settings
-            </button>
-          ) : (
-            'add your Jira domain in Settings'
-          )}
-          .
-        </p>
+    <p className="text-xs text-slate-500 dark:text-slate-400">
+      To open issues from here,{' '}
+      {onOpenSettings ? (
+        <button type="button" onClick={onOpenSettings} className="font-medium text-emerald-600 hover:underline dark:text-emerald-400">
+          add your Jira domain in Settings
+        </button>
+      ) : (
+        'add your Jira domain in Settings'
       )}
-    </div>
+      .
+    </p>
   );
 }
 
-function JiraKeyInput({ label, value, domain, onSave }) {
+/**
+ * Jira key input with an Open button. Accepts a key (any case) or a pasted
+ * issue link and saves the bare key on Enter or when leaving the field.
+ */
+export function JiraKeyInput({ label = 'Jira', value, domain, onSave, compact = false }) {
+  const id = useId();
   const [draft, setDraft] = useState(value);
   const [invalid, setInvalid] = useState(false);
   useEffect(() => setDraft(value), [value]);
@@ -96,11 +76,11 @@ function JiraKeyInput({ label, value, domain, onSave }) {
   return (
     <div>
       <div className="flex items-center gap-2">
-        <label className="w-12 shrink-0 text-xs font-medium text-slate-600 dark:text-slate-400" htmlFor={`jira-${label}`}>
+        <label className={`shrink-0 text-xs font-medium text-slate-600 dark:text-slate-400 ${compact ? 'sr-only' : 'w-12'}`} htmlFor={id}>
           {label}
         </label>
         <input
-          id={`jira-${label}`}
+          id={id}
           className={`${inputClass} min-w-0 py-1.5 font-mono uppercase placeholder:font-sans placeholder:normal-case ${invalid ? 'ring-rose-500 focus:ring-rose-500' : ''}`}
           placeholder="e.g. CLA-30533 (optional)"
           value={draft}
@@ -133,7 +113,7 @@ function JiraKeyInput({ label, value, domain, onSave }) {
           Open
         </a>
       </div>
-      {invalid && <p className="mt-1 pl-14 text-xs text-rose-600 dark:text-rose-400">Use an issue key like CLA-30533, or paste the issue link.</p>}
+      {invalid && <p className={`mt-1 text-xs text-rose-600 dark:text-rose-400 ${compact ? '' : 'pl-14'}`}>Use an issue key like CLA-30533, or paste the issue link.</p>}
     </div>
   );
 }
