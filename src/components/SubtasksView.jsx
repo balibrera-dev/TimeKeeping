@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowRightLeft, ArrowUp, ChevronDown, GripVertical, ListChecks, MessageSquare, Pause, Pencil, Play, Search } from 'lucide-react';
+import { ArrowDown, ArrowRightLeft, ArrowUp, ChevronDown, GripVertical, ListChecks, MessageSquare, Pause, Pencil, Play, Search, UserRound } from 'lucide-react';
 import { ClientBadge, ClientSelect, EmptyState, ProgressBar, inputClass } from './ui.jsx';
 import { JiraChip, JiraDomainHint, JiraKeyInput } from './Jira.jsx';
 import { CommentBox } from './CommentBox.jsx';
@@ -83,6 +83,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings 
       r.task.title.toLowerCase().includes(q) ||
       r.task.category.toLowerCase().includes(q) ||
       (r.client?.name.toLowerCase() ?? '').includes(q) ||
+      r.task.stakeholder?.toLowerCase().includes(q) ||
       r.task.jira?.toLowerCase().includes(q) ||
       r.subtask.jira?.toLowerCase().includes(q) ||
       r.subtask.notes?.toLowerCase().includes(q);
@@ -182,6 +183,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings 
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
                       <span className="min-w-0 break-words">{r.task.title}</span>
                       <ClientBadge client={r.client} />
+                      <Stakeholder name={r.task.stakeholder} />
                     </div>
                     <JiraCell row={r} domain={settings.jiraDomain} className="mt-1" />
                     <div className="mt-2 flex items-center gap-2">
@@ -253,6 +255,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings 
                         <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                           <ClientBadge client={r.client} />
                           <span className="truncate">{r.task.category}</span>
+                          <Stakeholder name={r.task.stakeholder} />
                         </div>
                       </td>
                       <td className="px-3 py-2">
@@ -517,5 +520,16 @@ function SubtaskDetails({ row, actions, domain, onOpenSettings, className = '' }
         />
       </div>
     </div>
+  );
+}
+
+function Stakeholder({ name }) {
+  if (!name) return null;
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1" title={`Stakeholder: ${name}`}>
+      <UserRound className="h-3 w-3 shrink-0" aria-hidden="true" />
+      <span className="sr-only">Stakeholder:</span>
+      <span className="truncate">{name}</span>
+    </span>
   );
 }

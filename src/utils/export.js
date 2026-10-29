@@ -11,6 +11,7 @@ export function dayLogRows(tasks, dayTs, now, clients = []) {
     return {
       date: isoDate(s.startTime),
       client: clientName(s.task.clientId),
+      stakeholder: s.task.stakeholder ?? '',
       task: s.task.title,
       subtask: subtaskTitle(s.task, s.subtaskId),
       type: s.task.kind === 'interruption' ? s.task.interruptType : 'task',
@@ -33,7 +34,7 @@ function csvCell(v) {
 }
 
 export function toCSV(rows) {
-  const headers = ['date', 'client', 'task', 'subtask', 'type', 'category', 'status', 'start', 'end', 'durationMinutes', 'running', 'comment', 'jira', 'subtaskJira'];
+  const headers = ['date', 'client', 'stakeholder', 'task', 'subtask', 'type', 'category', 'status', 'start', 'end', 'durationMinutes', 'running', 'comment', 'jira', 'subtaskJira'];
   const lines = [headers.join(',')];
   for (const r of rows) lines.push(headers.map((h) => csvCell(r[h])).join(','));
   return lines.join('\r\n');

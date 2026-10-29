@@ -336,6 +336,7 @@ test('subtasks can be reordered and their name and estimate edited', () => {
 test('old saved tasks get empty Jira keys and settings get the new defaults', () => {
   const loaded = sanitizeState({ templates: [], tasks: [{ id: 'x', title: 'Old', status: 'idle', subtasks: [], logs: [] }], settings: {} });
   assert.equal(loaded.tasks[0].jira, '');
+  assert.equal(loaded.tasks[0].stakeholder, '');
   assert.deepEqual(loaded.subtaskOrder, []);
   assert.equal(loaded.settings.runningOnTop, true);
   assert.equal(loaded.settings.jiraDomain, '');
@@ -385,4 +386,14 @@ test('Subtasks page order: dragged order sticks, new subtasks slot in after thei
   const ids = subtaskViewOrder(s);
   s = reducer(s, { type: 'SUBTASK_VIEW_REORDER', ids: [ids[3], ids[0]] });
   assert.deepEqual(names(), ['a1', 'a3', 'b1', 'a2']);
+});
+
+test('a task keeps a free-text stakeholder that shows up in the day export', () => {
+  let s = initialState(T0);
+  s = reducer(s, { type: 'TASK_CREATE', id: 't1', title: 'A', stakeholder: '  Maria, Finance ', subtasks: [], startNow: true, now: T0 });
+  assert.equal(byId(s, 't1').stakeholder, 'Maria, Finance');
+  s = reducer(s, { type: 'TASK_UPDATE', id: 't1', patch: { stakeholder: 'Ops team' }, now: T0 });
+  const rows = dayLogRows(s.tasks, T0, T0 + 10 * MIN);
+  assert.equal(rows[0].stakeholder, 'Ops team');
+  assert.match(toCSV(rows).split('\r\n')[0], /^date,client,stakeholder,task,/);
 });

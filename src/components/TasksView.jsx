@@ -41,6 +41,7 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
       t.title.toLowerCase().includes(q) ||
       t.category.toLowerCase().includes(q) ||
       clientName(t).includes(q) ||
+      t.stakeholder?.toLowerCase().includes(q) ||
       t.notes.toLowerCase().includes(q) ||
       t.jira?.toLowerCase().includes(q) ||
       t.subtasks.some((s) => s.title.toLowerCase().includes(q) || s.notes?.toLowerCase().includes(q) || s.jira?.toLowerCase().includes(q));

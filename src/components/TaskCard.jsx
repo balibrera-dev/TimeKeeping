@@ -17,6 +17,7 @@ import {
   RotateCcw,
   RotateCw,
   Trash2,
+  UserRound,
   X,
 } from 'lucide-react';
 import { Button, ClientBadge, ClientSelect, InlineEdit, ProgressBar, StatusBadge, inputClass, taskColor } from './ui.jsx';
@@ -112,6 +113,13 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
                   {estimate > 0 && ` · est ${formatMinutes(estimate)}`}
                   {` · ${sessionCount} session${sessionCount === 1 ? '' : 's'}`}
                 </div>
+                {task.stakeholder && (
+                  <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-slate-500 dark:text-slate-400" title={`Stakeholder: ${task.stakeholder}`}>
+                    <UserRound className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    <span className="sr-only">Stakeholder:</span>
+                    <span className="truncate">{task.stakeholder}</span>
+                  </div>
+                )}
                 {current && !isCompleted && (
                   <div className={`mt-0.5 flex min-w-0 items-center gap-1 text-xs ${isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
                     <CornerDownRight className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -204,6 +212,12 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Client</h4>
                 <ClientSelect clients={clients} value={task.clientId} onChange={(clientId) => actions.updateTask(task.id, { clientId })} onManage={onManageClients} />
+              </div>
+            )}
+            {!isInterruption && (
+              <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Stakeholder</h4>
+                <StakeholderInput value={task.stakeholder ?? ''} onSave={(stakeholder) => actions.updateTask(task.id, { stakeholder })} />
               </div>
             )}
             {!isInterruption && (
@@ -746,5 +760,30 @@ function SubtaskEditForm({ subtask, onSave, onCancel }) {
         <X className="h-4 w-4" />
       </button>
     </div>
+  );
+}
+
+/** Free-text stakeholder name; saves on Enter or when the field loses focus; Escape undoes the edit. */
+function StakeholderInput({ value, onSave }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const save = () => {
+    const next = draft.trim();
+    if (next !== value) onSave(next);
+    setDraft(next);
+  };
+  return (
+    <input
+      className={inputClass}
+      value={draft}
+      aria-label="Stakeholder"
+      placeholder="Who is this for? e.g. Maria Lopez, Finance"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+        if (e.key === 'Escape') setDraft(value);
+      }}
+    />
   );
 }

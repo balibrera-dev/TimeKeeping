@@ -63,6 +63,7 @@ function newTask(fields, now) {
     interruptType: fields.interruptType ?? null,
     resumeTaskId: fields.resumeTaskId ?? null,
     clientId: fields.clientId || null,
+    stakeholder: (fields.stakeholder ?? '').trim(),
     templateId: fields.templateId ?? null,
     status: 'idle',
     subtasks: (fields.subtasks ?? []).map((s) => ({
@@ -424,6 +425,7 @@ export function sanitizeState(raw) {
     interruptType: null,
     resumeTaskId: null,
     clientId: null,
+    stakeholder: '',
     currentSubtaskId: null,
     ...t,
     // One Jira key per task now; older data had a Story and a Parent (Story wins).
