@@ -3,6 +3,8 @@ import { ClipboardList, Plus, Search } from 'lucide-react';
 import { Button, ClientSelect, EmptyState, inputClass } from './ui.jsx';
 import { TaskCard } from './TaskCard.jsx';
 import { NewTaskModal } from './NewTaskModal.jsx';
+import { useSortable } from '../hooks/useSortable.js';
+import { DEFAULT_SETTINGS } from '../utils/reducer.js';
 
 const FILTERS = [
   { id: 'open', label: 'Open' },
@@ -19,9 +21,7 @@ const MATCHERS = {
   all: () => true,
 };
 
-const ORDER = { active: 0, paused: 1, idle: 2, completed: 3 };
-
-export function TasksView({ state, activeTask, actions, now, onManageTemplates, onManageClients, onCreated }) {
+export function TasksView({ state, activeTask, actions, now, onManageTemplates, onManageClients, onCreated, onOpenSettings }) {
   const [filter, setFilter] = useState('open');
   const [query, setQuery] = useState('');
   const [clientFilter, setClientFilter] = useState(null);
@@ -32,6 +32,7 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
     [state.tasks],
   );
 
+  const settings = { ...DEFAULT_SETTINGS, ...state.settings };
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     const clientName = (t) => state.clients.find((c) => c.id === t.clientId)?.name.toLowerCase() ?? '';
@@ -41,13 +42,26 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
       t.category.toLowerCase().includes(q) ||
       clientName(t).includes(q) ||
       t.notes.toLowerCase().includes(q) ||
+      t.jiraStory?.toLowerCase().includes(q) ||
+      t.jiraParent?.toLowerCase().includes(q) ||
       t.subtasks.some((s) => s.title.toLowerCase().includes(q) || s.notes?.toLowerCase().includes(q));
+    // Tasks keep the order you drag them into (their order in storage). The
+    // running task can be pinned on top (setting), and completed ones go last.
     return state.tasks
       .filter(MATCHERS[filter])
       .filter((t) => !clientFilter || t.clientId === clientFilter)
-      .filter(matches)
-      .sort((a, b) => ORDER[a.status] - ORDER[b.status] || b.createdAt - a.createdAt);
+      .filter(matches);
   }, [state.tasks, state.clients, filter, query, clientFilter]);
+
+  const pinned = visible.filter((t) => settings.runningOnTop && t.status === 'active');
+  const done = visible.filter((t) => t.status === 'completed');
+  const movable = visible.filter((t) => !pinned.includes(t) && !done.includes(t));
+  const sortable = useSortable(
+    movable.map((t) => t.id),
+    actions.reorderTasks,
+  );
+  const ordered = [...pinned, ...sortable.arrange(movable), ...done];
+  const canDrag = (t) => movable.includes(t) && movable.length > 1;
 
   return (
     <div className="space-y-4">
@@ -106,8 +120,22 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
         </EmptyState>
       ) : (
         <div className="space-y-3">
-          {visible.map((t) => (
-            <TaskCard key={t.id} task={t} now={now} actions={actions} hasActive={!!activeTask} clients={state.clients} settings={state.settings} onManageClients={onManageClients} />
+          {ordered.map((t) => (
+            <div key={t.id} ref={sortable.register(t.id)}>
+              <TaskCard
+                task={t}
+                now={now}
+                actions={actions}
+                hasActive={!!activeTask}
+                clients={state.clients}
+                settings={settings}
+                onManageClients={onManageClients}
+                onOpenSettings={onOpenSettings}
+                dragHandle={canDrag(t) ? sortable.handleProps(t.id) : null}
+                dragging={sortable.draggingId === t.id}
+                pinned={pinned.includes(t)}
+              />
+            </div>
           ))}
         </div>
       )}

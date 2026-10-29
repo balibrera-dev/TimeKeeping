@@ -5,6 +5,7 @@ import { AI_MODELS, loadAiSettings, saveAiSettings } from '../utils/ai.js';
 import { AI_ENABLED } from '../config.js';
 import { DEFAULT_SETTINGS } from '../utils/reducer.js';
 import { notificationStatus, playPing, requestNotificationPermission } from '../utils/alerts.js';
+import { jiraIssueUrl, normalizeJiraDomain } from '../utils/jira.js';
 
 const NOTIFY_HELP = {
   unsupported: 'This browser does not support notifications.',
@@ -34,7 +35,7 @@ export function SettingsModal({ open, onClose, settings: appSettings, onSave }) 
   }, [open, appSettings]);
 
   const save = () => {
-    onSave(prefs);
+    onSave({ ...prefs, jiraDomain: normalizeJiraDomain(prefs.jiraDomain) });
     if (AI_ENABLED) saveAiSettings({ ...ai, apiKey: ai.apiKey.trim() });
     onClose();
   };
@@ -75,6 +76,38 @@ export function SettingsModal({ open, onClose, settings: appSettings, onSave }) 
             </span>
           </span>
         </label>
+
+        <label className="flex cursor-pointer items-start gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+          <input
+            type="checkbox"
+            checked={prefs.runningOnTop}
+            onChange={(e) => setPrefs((p) => ({ ...p, runningOnTop: e.target.checked }))}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-emerald-600"
+          />
+          <span>
+            <span className="block text-sm font-medium">Show the running task at the top of the list</span>
+            <span className="block text-xs text-slate-500 dark:text-slate-400">
+              On: the task with the timer running moves to the top of Tasks. Off: it stays where you dragged it.
+            </span>
+          </span>
+        </label>
+
+        <div className="space-y-2 border-t border-slate-200 pt-4 dark:border-slate-800">
+          <Field label="Jira domain" hint="Your Jira site. Tasks can then link to their Story and Parent issues.">
+            <input
+              className={inputClass}
+              inputMode="url"
+              placeholder="https://your-company.atlassian.net/"
+              value={prefs.jiraDomain}
+              onChange={(e) => setPrefs((p) => ({ ...p, jiraDomain: e.target.value }))}
+            />
+          </Field>
+          {normalizeJiraDomain(prefs.jiraDomain) && (
+            <p className="break-all text-xs text-slate-500 dark:text-slate-400">
+              Issue links will look like <span className="font-mono text-slate-700 dark:text-slate-300">{jiraIssueUrl(prefs.jiraDomain, 'CLA-30533')}</span>
+            </p>
+          )}
+        </div>
 
         <div className="space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
           <label className="flex cursor-pointer items-start gap-3">

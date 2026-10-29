@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRightLeft,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
   CornerDownRight,
   FolderInput,
+  GripVertical,
   MessageSquare,
   Pencil,
+  Pin,
   Pause,
   Play,
   Plus,
@@ -18,12 +21,14 @@ import {
 } from 'lucide-react';
 import { Button, ClientBadge, ClientSelect, InlineEdit, ProgressBar, StatusBadge, inputClass, taskColor } from './ui.jsx';
 import { CommentBox } from './CommentBox.jsx';
+import { JiraChips, JiraFields } from './Jira.jsx';
+import { useSortable } from '../hooks/useSortable.js';
 import { INTERRUPTIONS } from '../types/index.js';
 import { formatClock, formatMinutes, formatTimeOfDay, parseDuration } from '../utils/time.js';
 import { subtaskTitle, subtaskTotals, taskElapsed, taskEstimate, trackedSubtaskTotals } from '../utils/sessions.js';
 
 /** A task row. Collapsed by default; expand for subtasks, comments and sessions. */
-export function TaskCard({ task, now, actions, hasActive, clients, settings, onManageClients }) {
+export function TaskCard({ task, now, actions, hasActive, clients, settings, onManageClients, onOpenSettings, dragHandle, dragging, pinned }) {
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(null); // 'reset' | 'delete' | null
   const [renaming, setRenaming] = useState(false);
@@ -48,6 +53,8 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
   return (
     <div
       className={`rounded-xl border border-l-4 bg-white shadow-sm transition-shadow dark:bg-slate-900 ${
+        dragging ? 'relative z-10 opacity-90 shadow-lg ring-2 ring-emerald-400 dark:ring-emerald-600' : ''
+      } ${
         isActive ? 'border-emerald-200 shadow-emerald-100 ring-1 ring-emerald-200 dark:border-emerald-900 dark:shadow-none dark:ring-emerald-900' : 'border-slate-200 dark:border-slate-800'
       }`}
       style={{ borderLeftColor: color }}
@@ -55,6 +62,7 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
       {/* Phone: title on its own row, then timer + controls. sm+: one row. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 sm:px-4">
         <div className="group/title flex min-w-0 basis-full items-start gap-1 sm:flex-1 sm:basis-0 sm:items-center">
+          <DragHandle handle={dragHandle} pinned={pinned} label="Drag to reorder tasks" />
           {renaming ? (
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Pencil className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
@@ -175,6 +183,7 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
           />
         </div>
         </div>
+        {!isInterruption && <JiraChips task={task} domain={settings?.jiraDomain} className="basis-full pl-5" />}
         {confirm && (
           <div className="basis-full text-right text-xs text-slate-500">
             {confirm === 'reset' ? 'Click reset again to clear all tracked time for this task.' : 'Click delete again to remove this task and its logs.'}
@@ -190,6 +199,12 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Client</h4>
                 <ClientSelect clients={clients} value={task.clientId} onChange={(clientId) => actions.updateTask(task.id, { clientId })} onManage={onManageClients} />
+              </div>
+            )}
+            {!isInterruption && (
+              <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Jira</h4>
+                <JiraFields task={task} domain={settings?.jiraDomain} onChange={(patch) => actions.updateTask(task.id, patch)} onOpenSettings={onOpenSettings} />
               </div>
             )}
             {(task.subtasks.length === 0 || task.notes.trim()) && (
@@ -227,6 +242,11 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
   for (const [id, ms] of totals) if (!known.has(id)) unassigned += ms;
   const isActive = task.status === 'active';
   const canTrack = task.status !== 'completed';
+  const sortable = useSortable(
+    task.subtasks.map((s) => s.id),
+    (ids) => actions.reorderSubtasks(task.id, ids),
+  );
+  const canDrag = task.subtasks.length > 1;
 
   const add = (e) => {
     e.preventDefault();
@@ -243,15 +263,22 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
       </h4>
       {task.subtasks.length === 0 && <p className="mb-2 text-sm text-slate-400">No subtasks. Add one below to break this task down and track time per step.</p>}
       <ul className="space-y-1">
-        {task.subtasks.map((s) => {
+        {sortable.arrange(task.subtasks).map((s) => {
           const isCurrent = task.currentSubtaskId === s.id;
           const tracking = isCurrent && isActive;
           const spent = totals.get(s.id) ?? 0;
           const over = s.estimate > 0 && spent > s.estimate * 60_000;
           const showComment = commentOpen === s.id;
           return (
-            <li key={s.id} className={`rounded-md ${tracking ? 'bg-emerald-50 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-900' : ''}`}>
-              <div className="group flex items-center gap-2 px-1.5 py-1">
+            <li
+              key={s.id}
+              ref={sortable.register(s.id)}
+              className={`rounded-md ${tracking ? 'bg-emerald-50 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-900' : ''} ${
+                sortable.draggingId === s.id ? 'relative z-10 bg-white shadow-md ring-2 ring-emerald-400 dark:bg-slate-800 dark:ring-emerald-600' : ''
+              }`}
+            >
+              <div className="group flex items-center gap-1.5 px-0.5 py-1 sm:gap-2">
+                {canDrag && <DragHandle handle={sortable.handleProps(s.id)} label="Drag to reorder subtasks" />}
                 <input
                   type="checkbox"
                   checked={s.done}
@@ -260,15 +287,13 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
                   aria-label={`Mark “${s.title}” ${s.done ? 'not done' : 'done'}`}
                 />
                 {renamingId === s.id ? (
-                  <InlineEdit
-                    value={s.title}
-                    onSave={(title) => {
-                      actions.renameSubtask(task.id, s.id, title);
+                  <SubtaskEditForm
+                    subtask={s}
+                    onSave={(patch) => {
+                      actions.editSubtask(task.id, s.id, patch);
                       setRenamingId(null);
                     }}
                     onCancel={() => setRenamingId(null)}
-                    aria-label="Subtask name"
-                    className="min-w-0 flex-1 px-2 text-sm"
                   />
                 ) : (
                   <button
@@ -293,41 +318,45 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
                     <span className="line-clamp-2 break-words sm:line-clamp-1">{s.title}</span>
                   </button>
                 )}
-                <SubtaskTime
-                  subtask={s}
-                  spent={spent}
-                  tracked={tracked.get(s.id) ?? 0}
-                  tracking={tracking}
-                  over={over}
-                  editable={allowTimeEdits && s.done}
-                  onSave={(ms) => actions.setSubtaskTime(task.id, s.id, ms)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setRenamingId(s.id)}
-                  className="rounded p-0.5 text-slate-400 opacity-0 group-hover:opacity-100 hover:text-slate-600 focus-visible:opacity-100 pointer-coarse:opacity-100 dark:hover:text-slate-200"
-                  aria-label="Rename subtask"
-                  title="Rename subtask"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCommentOpen(showComment ? null : s.id)}
-                  className={`rounded p-0.5 ${s.notes?.trim() ? 'text-amber-500' : 'text-slate-300 hover:text-slate-500 dark:text-slate-600'}`}
-                  aria-label={s.notes?.trim() ? 'Edit comment' : 'Add comment'}
-                  title={s.notes?.trim() ? 'Edit comment' : 'Add comment'}
-                >
-                  <MessageSquare className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => actions.removeSubtask(task.id, s.id)}
-                  className="invisible rounded p-0.5 text-slate-400 hover:text-rose-500 group-hover:visible pointer-coarse:visible"
-                  aria-label="Remove subtask"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                {renamingId !== s.id && (
+                  <>
+                    <SubtaskTime
+                      subtask={s}
+                      spent={spent}
+                      tracked={tracked.get(s.id) ?? 0}
+                      tracking={tracking}
+                      over={over}
+                      editable={allowTimeEdits && s.done}
+                      onSave={(ms) => actions.setSubtaskTime(task.id, s.id, ms)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setRenamingId(s.id)}
+                      className="rounded p-0.5 text-slate-400 opacity-0 group-hover:opacity-100 hover:text-slate-600 focus-visible:opacity-100 pointer-coarse:opacity-100 dark:hover:text-slate-200"
+                      aria-label="Edit subtask name and estimate"
+                      title="Edit name and estimate"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCommentOpen(showComment ? null : s.id)}
+                      className={`rounded p-0.5 ${s.notes?.trim() ? 'text-amber-500' : 'text-slate-300 hover:text-slate-500 dark:text-slate-600'}`}
+                      aria-label={s.notes?.trim() ? 'Edit comment' : 'Add comment'}
+                      title={s.notes?.trim() ? 'Edit comment' : 'Add comment'}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => actions.removeSubtask(task.id, s.id)}
+                      className="invisible rounded p-0.5 text-slate-400 hover:text-rose-500 group-hover:visible pointer-coarse:visible"
+                      aria-label="Remove subtask"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
               </div>
               {showComment ? (
                 <div className="px-1.5 pb-2 pl-7">
@@ -438,6 +467,33 @@ function UnassignedRow({ ms, onRemove, onMakeSubtask }) {
       </div>
       {confirm && <div className="mt-0.5 text-right text-rose-600 dark:text-rose-400">Click again to delete {formatClock(ms)} from this task.</div>}
     </li>
+  );
+}
+
+/**
+ * Grip used to drag a task or subtask (mouse, touch or arrow keys). Shows a
+ * pin instead of a grip when the running task is held at the top.
+ */
+function DragHandle({ handle, pinned, label, className = '' }) {
+  if (!handle) {
+    return pinned ? (
+      <span className={`flex h-6 w-4 shrink-0 items-center justify-center text-emerald-500 ${className}`} title="The running task stays on top. You can change this in Settings.">
+        <Pin className="h-3.5 w-3.5" aria-hidden="true" />
+      </span>
+    ) : (
+      <span className={`w-4 shrink-0 ${className}`} aria-hidden="true" />
+    );
+  }
+  return (
+    <button
+      type="button"
+      {...handle}
+      className={`flex h-6 w-4 shrink-0 cursor-grab items-center justify-center rounded text-slate-300 hover:text-slate-500 active:cursor-grabbing dark:text-slate-600 dark:hover:text-slate-400 ${className}`}
+      aria-label={`${label} (or use the up and down arrow keys)`}
+      title={label}
+    >
+      <GripVertical className="h-4 w-4" aria-hidden="true" />
+    </button>
   );
 }
 
@@ -586,5 +642,84 @@ function SubtaskTime({ subtask, spent, tracked, tracking, over, editable, onSave
       {label}
       <Pencil className="h-3 w-3 text-slate-400 opacity-0 group-hover/time:opacity-100" aria-hidden="true" />
     </button>
+  );
+}
+
+/**
+ * Edit a subtask's name and estimate in place. Enter or clicking outside
+ * saves; Escape cancels. A blank name keeps the old one.
+ */
+function SubtaskEditForm({ subtask, onSave, onCancel }) {
+  const [title, setTitle] = useState(subtask.title);
+  const [estimate, setEstimate] = useState(String(subtask.estimate ?? 0));
+  const done = useRef(false);
+  const finish = (save) => {
+    if (done.current) return;
+    done.current = true;
+    const name = title.trim() || subtask.title;
+    const minutes = Math.max(0, Math.round(Number(estimate) || 0));
+    if (save && (name !== subtask.title || minutes !== subtask.estimate)) onSave({ title: name, estimate: minutes });
+    else onCancel();
+  };
+  const keys = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      finish(true);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      finish(false);
+    }
+  };
+  return (
+    <div
+      className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) finish(true);
+      }}
+    >
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onKeyDown={keys}
+        aria-label="Subtask name"
+        className={`${inputClass} min-w-0 flex-1 basis-40 px-2 py-1 text-sm`}
+      />
+      <label className="flex shrink-0 items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+        Est.
+        <input
+          type="number"
+          min="0"
+          step="5"
+          value={estimate}
+          onChange={(e) => setEstimate(e.target.value)}
+          onKeyDown={keys}
+          aria-label="Estimate in minutes"
+          className={`${inputClass} w-16! px-2 py-1 text-sm`}
+        />
+        min
+      </label>
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => finish(true)}
+        className="shrink-0 rounded p-1 text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10"
+        aria-label="Save"
+        title="Save (Enter)"
+      >
+        <Check className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => finish(false)}
+        className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+        aria-label="Cancel"
+        title="Cancel (Esc)"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
   );
 }

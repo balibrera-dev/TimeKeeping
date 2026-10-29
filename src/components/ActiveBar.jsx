@@ -9,6 +9,7 @@ import { sessionsForDay, subtaskTotals, taskElapsed, taskEstimate, workSessions 
 
 const TABS = [
   { id: 'tasks', label: 'Tasks' },
+  { id: 'subtasks', label: 'Subtasks' },
   { id: 'calendar', label: 'Calendar' },
   { id: 'clients', label: 'Clients' },
   { id: 'templates', label: 'Templates' },

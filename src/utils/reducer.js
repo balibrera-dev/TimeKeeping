@@ -10,6 +10,8 @@ export const DEFAULT_SETTINGS = {
   onEstimateReached: 'stay',
   alertSound: true,
   desktopNotifications: false,
+  runningOnTop: true,
+  jiraDomain: '',
 };
 
 /** Starter templates so the first run isn't empty. Users can edit or delete them. */
@@ -74,6 +76,8 @@ function newTask(fields, now) {
     logs: [],
     activeStart: null,
     notes: '',
+    jiraStory: '',
+    jiraParent: '',
     createdAt: now,
     completedAt: null,
   };
@@ -129,6 +133,18 @@ function nextOpenSubtask(task, afterId) {
 /** True when a session's time isn't on any current subtask (none, or one that was removed). */
 function isUnassigned(task, subtaskId) {
   return subtaskId == null || !task.subtasks.some((s) => s.id === subtaskId);
+}
+
+/**
+ * Put `ids` (a subset of `items`, in their new order) back into the slots
+ * those items held, leaving every other item where it was.
+ */
+function reorderSubset(items, ids) {
+  const wanted = ids.filter((id) => items.some((it) => it.id === id));
+  const set = new Set(wanted);
+  const byId = new Map(items.map((it) => [it.id, it]));
+  let i = 0;
+  return items.map((it) => (set.has(it.id) ? byId.get(wanted[i++]) : it));
 }
 
 function mapTask(state, id, fn) {
@@ -189,6 +205,9 @@ export function reducer(state, action) {
       const title = action.title?.trim();
       return title ? mapTask(state, action.id, (t) => ({ ...t, title })) : state;
     }
+    /** Manual order: `ids` are the dragged list's tasks in their new order. */
+    case 'TASK_REORDER':
+      return { ...state, tasks: reorderSubset(state.tasks, action.ids ?? []) };
     case 'TASK_DELETE':
       return { ...state, tasks: state.tasks.filter((t) => t.id !== action.id) };
 
@@ -304,6 +323,20 @@ export function reducer(state, action) {
       }));
     }
 
+    /** Edit a subtask's name and/or estimate (minutes). Blank names are ignored. */
+    case 'SUBTASK_EDIT': {
+      const title = action.title?.trim();
+      const estimate = action.estimate == null ? null : Math.max(0, Math.round(Number(action.estimate) || 0));
+      return mapTask(state, action.taskId, (t) => ({
+        ...t,
+        subtasks: t.subtasks.map((s) =>
+          s.id === action.subtaskId ? { ...s, ...(title ? { title } : {}), ...(estimate == null ? {} : { estimate }) } : s,
+        ),
+      }));
+    }
+    case 'SUBTASK_REORDER':
+      return mapTask(state, action.taskId, (t) => ({ ...t, subtasks: reorderSubset(t.subtasks, action.ids ?? []) }));
+
     // ---- "Not on a subtask" time ------------------------------------------
     /**
      * Drop the time that isn't on any subtask. A running session that isn't on
@@ -367,6 +400,8 @@ export function sanitizeState(raw) {
     resumeTaskId: null,
     clientId: null,
     currentSubtaskId: null,
+    jiraStory: '',
+    jiraParent: '',
     ...t,
     subtasks: (t.subtasks ?? []).map((s) => ({ notes: '', done: false, estimate: 0, timeOverride: null, ...s })),
   }));

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActiveBar } from './components/ActiveBar.jsx';
 import { TasksView } from './components/TasksView.jsx';
+import { SubtasksView } from './components/SubtasksView.jsx';
 import { TemplatesView } from './components/TemplatesView.jsx';
 import { CalendarView } from './components/CalendarView.jsx';
 import { ClientsView } from './components/ClientsView.jsx';
@@ -69,7 +70,11 @@ export default function App() {
             onCreated={onCreated}
             onManageTemplates={() => setView('templates')}
             onManageClients={() => setView('clients')}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
+        )}
+        {!legalDoc && view === 'subtasks' && (
+          <SubtasksView state={state} actions={actions} now={now} onOpenTasks={() => setView('tasks')} onOpenSettings={() => setSettingsOpen(true)} />
         )}
         {!legalDoc && view === 'calendar' && <CalendarView tasks={state.tasks} clients={state.clients} now={now} />}
         {!legalDoc && view === 'clients' && <ClientsView state={state} actions={actions} now={now} />}

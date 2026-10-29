@@ -305,3 +305,38 @@ test('time left on a removed subtask counts as "not on a subtask" and can be rem
   assert.equal(t.logs.length, 0);
   assert.equal(t.status, 'idle');
 });
+
+test('reordering tasks only moves the dragged ones and keeps the others in place', () => {
+  let s = withTasks('A', 'B', 'C', 'D'); // stored newest first: t4, t3, t2, t1
+  assert.deepEqual(s.tasks.map((t) => t.id), ['t4', 't3', 't2', 't1']);
+  // Drag within a filtered list that only shows t4, t2 and t1.
+  s = reducer(s, { type: 'TASK_REORDER', ids: ['t1', 't4', 't2'] });
+  assert.deepEqual(s.tasks.map((t) => t.id), ['t1', 't3', 't4', 't2']);
+  // Unknown ids are ignored.
+  s = reducer(s, { type: 'TASK_REORDER', ids: ['nope', 't2', 't1'] });
+  assert.deepEqual(s.tasks.map((t) => t.id), ['t2', 't3', 't4', 't1']);
+});
+
+test('subtasks can be reordered and their name and estimate edited', () => {
+  let s = { ...initialState(T0), tasks: [] };
+  s = reducer(s, {
+    type: 'TASK_CREATE', id: 't1', title: 'A', now: T0,
+    subtasks: [{ title: 'One', estimate: 10 }, { title: 'Two', estimate: 20 }, { title: 'Three', estimate: 30 }],
+  });
+  const [a, b, c] = byId(s, 't1').subtasks.map((st) => st.id);
+  s = reducer(s, { type: 'SUBTASK_REORDER', taskId: 't1', ids: [c, a, b] });
+  assert.deepEqual(byId(s, 't1').subtasks.map((st) => st.title), ['Three', 'One', 'Two']);
+
+  s = reducer(s, { type: 'SUBTASK_EDIT', taskId: 't1', subtaskId: a, title: ' Uno ', estimate: '45' });
+  s = reducer(s, { type: 'SUBTASK_EDIT', taskId: 't1', subtaskId: b, title: '  ', estimate: -5 });
+  const subs = byId(s, 't1').subtasks;
+  assert.deepEqual(subs.map((st) => [st.title, st.estimate]), [['Three', 30], ['Uno', 45], ['Two', 0]]);
+});
+
+test('old saved tasks get empty Jira keys and settings get the new defaults', () => {
+  const loaded = sanitizeState({ templates: [], tasks: [{ id: 'x', title: 'Old', status: 'idle', subtasks: [], logs: [] }], settings: {} });
+  assert.equal(loaded.tasks[0].jiraStory, '');
+  assert.equal(loaded.tasks[0].jiraParent, '');
+  assert.equal(loaded.settings.runningOnTop, true);
+  assert.equal(loaded.settings.jiraDomain, '');
+});

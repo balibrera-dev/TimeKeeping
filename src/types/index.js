@@ -68,6 +68,8 @@
  * @property {TimeLog[]} logs
  * @property {number | null} activeStart  Start timestamp of the open session, if running.
  * @property {string} notes  Task-level comment (used when the task has no subtasks).
+ * @property {string} jiraStory  Jira issue key of the story, e.g. CLA-30533 ('' when none).
+ * @property {string} jiraParent  Jira issue key of the parent / epic ('' when none).
  * @property {number} createdAt
  * @property {number | null} completedAt
  */
@@ -80,6 +82,8 @@
  * @property {EstimateAction} onEstimateReached  'stay' (default) or 'next' to move to the next subtask automatically.
  * @property {boolean} alertSound  Play a ping with the alert.
  * @property {boolean} desktopNotifications  Also show a system notification when the tab is in the background.
+ * @property {boolean} runningOnTop  Show the running task at the top of the task list (default) or keep it in its place.
+ * @property {string} jiraDomain  Jira site, e.g. https://business.atlassian.net, used to open a task's story / parent.
  */
 
 /**
