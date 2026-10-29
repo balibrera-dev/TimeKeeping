@@ -84,7 +84,8 @@
  * @property {boolean} alertSound  Play a ping with the alert.
  * @property {boolean} desktopNotifications  Also show a system notification when the tab is in the background.
  * @property {boolean} runningOnTop  Show the running task at the top of the task list (default) or keep it in its place.
- * @property {string} jiraDomain  Jira site, e.g. https://business.atlassian.net, used to open a task's story / parent.
+ * @property {boolean} startedSubtaskOnTop  Starting a subtask moves it to the top of the Subtasks page order (default on).
+ * @property {string} jiraDomain  Jira site, e.g. https://business.atlassian.net, used to open task and subtask issues.
  */
 
 /**

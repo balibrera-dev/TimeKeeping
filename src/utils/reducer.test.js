@@ -397,3 +397,29 @@ test('a task keeps a free-text stakeholder that shows up in the day export', () 
   assert.equal(rows[0].stakeholder, 'Ops team');
   assert.match(toCSV(rows).split('\r\n')[0], /^date,client,stakeholder,task,/);
 });
+
+test('starting a subtask moves it to the top of the Subtasks page, building a history', () => {
+  let s = { ...initialState(T0), tasks: [] };
+  s = reducer(s, { type: 'TASK_CREATE', id: 'tA', title: 'A', now: T0, subtasks: [{ title: 'a1' }, { title: 'a2' }] });
+  s = reducer(s, { type: 'TASK_CREATE', id: 'tB', title: 'B', now: T0, subtasks: [{ title: 'b1' }] });
+  const title = (id) => s.tasks.flatMap((t) => t.subtasks).find((st) => st.id === id).title;
+  const names = () => subtaskViewOrder(s).map(title);
+  const [b1, a1, a2] = subtaskViewOrder(s);
+
+  s = reducer(s, { type: 'TASK_START', id: 'tA', subtaskId: a2, now: T0 });
+  assert.deepEqual(names(), ['a2', 'b1', 'a1']);
+  s = reducer(s, { type: 'TASK_START', id: 'tB', subtaskId: b1, now: T0 + MIN });
+  assert.deepEqual(names(), ['b1', 'a2', 'a1']);
+  s = reducer(s, { type: 'TASK_START', id: 'tA', subtaskId: a1, now: T0 + 2 * MIN }); // switch within history
+  assert.deepEqual(names(), ['a1', 'b1', 'a2']);
+
+  // Editing or dragging while it runs does not move things again.
+  s = reducer(s, { type: 'SUBTASK_VIEW_REORDER', ids: [b1, a1, a2] });
+  s = reducer(s, { type: 'SUBTASK_EDIT', taskId: 'tA', subtaskId: a1, estimate: 5 });
+  assert.deepEqual(names(), ['b1', 'a1', 'a2']);
+
+  // With the setting off, starting leaves the order alone.
+  s = reducer(s, { type: 'SETTINGS_UPDATE', patch: { startedSubtaskOnTop: false } });
+  s = reducer(s, { type: 'TASK_START', id: 'tA', subtaskId: a2, now: T0 + 3 * MIN });
+  assert.deepEqual(names(), ['b1', 'a1', 'a2']);
+});
