@@ -17,11 +17,13 @@ import {
   RotateCcw,
   RotateCw,
   Trash2,
+  UserRound,
   X,
 } from 'lucide-react';
 import { Button, ClientBadge, ClientSelect, InlineEdit, ProgressBar, StatusBadge, inputClass, taskColor } from './ui.jsx';
 import { CommentBox } from './CommentBox.jsx';
-import { JiraChips, JiraFields } from './Jira.jsx';
+import { JiraChip, JiraDomainHint, JiraKeyInput } from './Jira.jsx';
+import { parseIssueKey } from '../utils/jira.js';
 import { useSortable } from '../hooks/useSortable.js';
 import { INTERRUPTIONS } from '../types/index.js';
 import { formatClock, formatMinutes, formatTimeOfDay, parseDuration } from '../utils/time.js';
@@ -111,6 +113,13 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
                   {estimate > 0 && ` · est ${formatMinutes(estimate)}`}
                   {` · ${sessionCount} session${sessionCount === 1 ? '' : 's'}`}
                 </div>
+                {task.stakeholder && (
+                  <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-slate-500 dark:text-slate-400" title={`Stakeholder: ${task.stakeholder}`}>
+                    <UserRound className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    <span className="sr-only">Stakeholder:</span>
+                    <span className="truncate">{task.stakeholder}</span>
+                  </div>
+                )}
                 {current && !isCompleted && (
                   <div className={`mt-0.5 flex min-w-0 items-center gap-1 text-xs ${isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
                     <CornerDownRight className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -183,7 +192,11 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
           />
         </div>
         </div>
-        {!isInterruption && <JiraChips task={task} domain={settings?.jiraDomain} className="basis-full pl-5" />}
+        {!isInterruption && task.jira && (
+          <div className="basis-full pl-5">
+            <JiraChip issueKey={task.jira} label="Jira" domain={settings?.jiraDomain} />
+          </div>
+        )}
         {confirm && (
           <div className="basis-full text-right text-xs text-slate-500">
             {confirm === 'reset' ? 'Click reset again to clear all tracked time for this task.' : 'Click delete again to remove this task and its logs.'}
@@ -193,7 +206,7 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
 
       {open && (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-4 border-t border-slate-100 p-3 sm:p-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] dark:border-slate-800">
-          <SubtaskList task={task} now={now} actions={actions} client={client} allowTimeEdits={settings?.allowTimeEdits ?? true} />
+          <SubtaskList task={task} now={now} actions={actions} client={client} allowTimeEdits={settings?.allowTimeEdits ?? true} jiraDomain={settings?.jiraDomain} />
           <div className="min-w-0 space-y-4">
             {!isInterruption && (
               <div>
@@ -203,8 +216,18 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
             )}
             {!isInterruption && (
               <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Stakeholder</h4>
+                <StakeholderInput value={task.stakeholder ?? ''} onSave={(stakeholder) => actions.updateTask(task.id, { stakeholder })} />
+              </div>
+            )}
+            {!isInterruption && (
+              <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Jira</h4>
-                <JiraFields task={task} domain={settings?.jiraDomain} onChange={(patch) => actions.updateTask(task.id, patch)} onOpenSettings={onOpenSettings} />
+                <div className="space-y-2">
+                  <JiraKeyInput label="Task" value={task.jira ?? ''} domain={settings?.jiraDomain} onSave={(jira) => actions.updateTask(task.id, { jira })} />
+                  {!settings?.jiraDomain && <JiraDomainHint onOpenSettings={onOpenSettings} />}
+                  {task.subtasks.length > 0 && <p className="text-xs text-slate-400">Each subtask can have its own key too: use its pencil.</p>}
+                </div>
               </div>
             )}
             {(task.subtasks.length === 0 || task.notes.trim()) && (
@@ -230,7 +253,7 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
  * Checklist where each subtask carries its own tracked time and one comment.
  * Clicking a subtask's name puts the timer on it (starting or switching the task).
  */
-function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
+function SubtaskList({ task, now, actions, client, allowTimeEdits, jiraDomain }) {
   const [title, setTitle] = useState('');
   const [estimate, setEstimate] = useState(30);
   const [commentOpen, setCommentOpen] = useState(null);
@@ -333,8 +356,8 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
                       type="button"
                       onClick={() => setRenamingId(s.id)}
                       className="rounded p-0.5 text-slate-400 opacity-0 group-hover:opacity-100 hover:text-slate-600 focus-visible:opacity-100 pointer-coarse:opacity-100 dark:hover:text-slate-200"
-                      aria-label="Edit subtask name and estimate"
-                      title="Edit name and estimate"
+                      aria-label="Edit subtask"
+                      title="Edit name, estimate and Jira key"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
@@ -358,6 +381,11 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits }) {
                   </>
                 )}
               </div>
+              {s.jira && renamingId !== s.id && (
+                <div className="px-1.5 pb-1 pl-11">
+                  <JiraChip issueKey={s.jira} domain={jiraDomain} />
+                </div>
+              )}
               {showComment ? (
                 <div className="px-1.5 pb-2 pl-7">
                   <CommentBox
@@ -646,19 +674,22 @@ function SubtaskTime({ subtask, spent, tracked, tracking, over, editable, onSave
 }
 
 /**
- * Edit a subtask's name and estimate in place. Enter or clicking outside
+ * Edit a subtask's name, estimate and Jira key in place. Enter or clicking outside
  * saves; Escape cancels. A blank name keeps the old one.
  */
 function SubtaskEditForm({ subtask, onSave, onCancel }) {
   const [title, setTitle] = useState(subtask.title);
   const [estimate, setEstimate] = useState(String(subtask.estimate ?? 0));
+  const [jira, setJira] = useState(subtask.jira ?? '');
   const done = useRef(false);
   const finish = (save) => {
     if (done.current) return;
     done.current = true;
     const name = title.trim() || subtask.title;
     const minutes = Math.max(0, Math.round(Number(estimate) || 0));
-    if (save && (name !== subtask.title || minutes !== subtask.estimate)) onSave({ title: name, estimate: minutes });
+    // Something that isn't a Jira key keeps the old key.
+    const key = jira.trim() ? parseIssueKey(jira) || (subtask.jira ?? '') : '';
+    if (save && (name !== subtask.title || minutes !== subtask.estimate || key !== (subtask.jira ?? ''))) onSave({ title: name, estimate: minutes, jira: key });
     else onCancel();
   };
   const keys = (e) => {
@@ -700,6 +731,14 @@ function SubtaskEditForm({ subtask, onSave, onCancel }) {
         />
         min
       </label>
+      <input
+        value={jira}
+        onChange={(e) => setJira(e.target.value)}
+        onKeyDown={keys}
+        placeholder="Jira key"
+        aria-label="Jira key"
+        className={`${inputClass} w-28! px-2 py-1 font-mono text-sm uppercase placeholder:font-sans placeholder:normal-case`}
+      />
       <button
         type="button"
         onMouseDown={(e) => e.preventDefault()}
@@ -721,5 +760,30 @@ function SubtaskEditForm({ subtask, onSave, onCancel }) {
         <X className="h-4 w-4" />
       </button>
     </div>
+  );
+}
+
+/** Free-text stakeholder name; saves on Enter or when the field loses focus; Escape undoes the edit. */
+function StakeholderInput({ value, onSave }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const save = () => {
+    const next = draft.trim();
+    if (next !== value) onSave(next);
+    setDraft(next);
+  };
+  return (
+    <input
+      className={inputClass}
+      value={draft}
+      aria-label="Stakeholder"
+      placeholder="Who is this for? e.g. Maria Lopez, Finance"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+        if (e.key === 'Escape') setDraft(value);
+      }}
+    />
   );
 }

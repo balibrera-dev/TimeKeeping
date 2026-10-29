@@ -72,8 +72,10 @@ export function useTracker() {
       addSubtask: (taskId, title, estimate) => dispatch({ type: 'SUBTASK_ADD', taskId, title, estimate }),
       removeSubtask: (taskId, subtaskId) => dispatch({ type: 'SUBTASK_REMOVE', taskId, subtaskId, now: now() }),
       renameSubtask: (taskId, subtaskId, title) => dispatch({ type: 'SUBTASK_RENAME', taskId, subtaskId, title }),
-      /** Change a subtask's name and/or estimate (minutes); omitted fields stay as they are. */
-      editSubtask: (taskId, subtaskId, { title, estimate }) => dispatch({ type: 'SUBTASK_EDIT', taskId, subtaskId, title, estimate }),
+      /** Change a subtask's name, estimate (minutes) and/or Jira key; omitted fields stay as they are. */
+      editSubtask: (taskId, subtaskId, { title, estimate, jira }) => dispatch({ type: 'SUBTASK_EDIT', taskId, subtaskId, title, estimate, jira }),
+      /** Save the Subtasks page's manual order for the rows in `ids`. */
+      reorderSubtaskView: (ids) => dispatch({ type: 'SUBTASK_VIEW_REORDER', ids }),
       reorderSubtasks: (taskId, ids) => dispatch({ type: 'SUBTASK_REORDER', taskId, ids }),
       /** Delete the time that isn't on any subtask. */
       removeUnassigned: (taskId) => dispatch({ type: 'UNASSIGNED_REMOVE', taskId, now: now() }),

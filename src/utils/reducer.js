@@ -51,7 +51,7 @@ export function defaultTemplates(now = Date.now()) {
 
 /** @returns {import('../types').TrackerState} */
 export function initialState(now = Date.now()) {
-  return { version: STATE_VERSION, templates: defaultTemplates(now), tasks: [], clients: [], settings: { ...DEFAULT_SETTINGS } };
+  return { version: STATE_VERSION, templates: defaultTemplates(now), tasks: [], clients: [], settings: { ...DEFAULT_SETTINGS }, subtaskOrder: [] };
 }
 
 function newTask(fields, now) {
@@ -63,6 +63,7 @@ function newTask(fields, now) {
     interruptType: fields.interruptType ?? null,
     resumeTaskId: fields.resumeTaskId ?? null,
     clientId: fields.clientId || null,
+    stakeholder: (fields.stakeholder ?? '').trim(),
     templateId: fields.templateId ?? null,
     status: 'idle',
     subtasks: (fields.subtasks ?? []).map((s) => ({
@@ -71,13 +72,13 @@ function newTask(fields, now) {
       estimate: Number(s.estimate) || 0,
       done: false,
       notes: '',
+      jira: '',
     })),
     currentSubtaskId: null,
     logs: [],
     activeStart: null,
     notes: '',
-    jiraStory: '',
-    jiraParent: '',
+    jira: '',
     createdAt: now,
     completedAt: null,
   };
@@ -145,6 +146,29 @@ function reorderSubset(items, ids) {
   const byId = new Map(items.map((it) => [it.id, it]));
   let i = 0;
   return items.map((it) => (set.has(it.id) ? byId.get(wanted[i++]) : it));
+}
+
+/**
+ * Subtask ids in the order the Subtasks page shows them. Starts as task order
+ * (then subtask order); once rows are dragged, `state.subtaskOrder` wins and
+ * subtasks added later slot in right after their previous sibling.
+ * @returns {string[]}
+ */
+export function subtaskViewOrder(state) {
+  const natural = state.tasks.filter((t) => t.kind !== 'interruption').flatMap((t) => t.subtasks.map((s) => s.id));
+  const exists = new Set(natural);
+  const order = (state.subtaskOrder ?? []).filter((id) => exists.has(id));
+  if (!order.length) return natural;
+  const placed = new Set(order);
+  let prev = null;
+  for (const id of natural) {
+    if (!placed.has(id)) {
+      order.splice(prev == null ? 0 : order.indexOf(prev) + 1, 0, id);
+      placed.add(id);
+    }
+    prev = id;
+  }
+  return order;
 }
 
 function mapTask(state, id, fn) {
@@ -307,7 +331,7 @@ export function reducer(state, action) {
     case 'SUBTASK_ADD':
       return mapTask(state, action.taskId, (t) => ({
         ...t,
-        subtasks: [...t.subtasks, { id: uid(), title: action.title, estimate: Number(action.estimate) || 0, done: false, notes: '' }],
+        subtasks: [...t.subtasks, { id: uid(), title: action.title, estimate: Number(action.estimate) || 0, done: false, notes: '', jira: '' }],
       }));
     case 'SUBTASK_REMOVE':
       return mapTask(state, action.taskId, (t) => {
@@ -323,17 +347,19 @@ export function reducer(state, action) {
       }));
     }
 
-    /** Edit a subtask's name and/or estimate (minutes). Blank names are ignored. */
+    /** Edit a subtask's name, estimate (minutes) and/or Jira key. Blank names are ignored. */
     case 'SUBTASK_EDIT': {
       const title = action.title?.trim();
       const estimate = action.estimate == null ? null : Math.max(0, Math.round(Number(action.estimate) || 0));
+      const patch = { ...(title ? { title } : {}), ...(estimate == null ? {} : { estimate }), ...(action.jira == null ? {} : { jira: action.jira }) };
       return mapTask(state, action.taskId, (t) => ({
         ...t,
-        subtasks: t.subtasks.map((s) =>
-          s.id === action.subtaskId ? { ...s, ...(title ? { title } : {}), ...(estimate == null ? {} : { estimate }) } : s,
-        ),
+        subtasks: t.subtasks.map((s) => (s.id === action.subtaskId ? { ...s, ...patch } : s)),
       }));
     }
+    /** Manual order of the Subtasks page: `ids` are the dragged rows in their new order. */
+    case 'SUBTASK_VIEW_REORDER':
+      return { ...state, subtaskOrder: reorderSubset(subtaskViewOrder(state).map((id) => ({ id })), action.ids ?? []).map((it) => it.id) };
     case 'SUBTASK_REORDER':
       return mapTask(state, action.taskId, (t) => ({ ...t, subtasks: reorderSubset(t.subtasks, action.ids ?? []) }));
 
@@ -355,7 +381,7 @@ export function reducer(state, action) {
       if (!title) return state;
       return mapTask(state, action.taskId, (t) => {
         const id = action.subtaskId ?? uid();
-        const subtask = { id, title, estimate: Number(action.estimate) || 0, done: false, notes: '', timeOverride: null };
+        const subtask = { id, title, estimate: Number(action.estimate) || 0, done: false, notes: '', jira: '', timeOverride: null };
         const logs = t.logs.map((l) => (isUnassigned(t, l.subtaskId) ? { ...l, subtaskId: id } : l));
         const currentSubtaskId = t.activeStart != null && isUnassigned(t, t.currentSubtaskId) ? id : t.currentSubtaskId;
         return { ...t, logs, currentSubtaskId, subtasks: [...t.subtasks, subtask] };
@@ -399,12 +425,17 @@ export function sanitizeState(raw) {
     interruptType: null,
     resumeTaskId: null,
     clientId: null,
+    stakeholder: '',
     currentSubtaskId: null,
-    jiraStory: '',
-    jiraParent: '',
     ...t,
-    subtasks: (t.subtasks ?? []).map((s) => ({ notes: '', done: false, estimate: 0, timeOverride: null, ...s })),
+    // One Jira key per task now; older data had a Story and a Parent (Story wins).
+    jira: t.jira ?? (t.jiraStory || t.jiraParent || ''),
+    subtasks: (t.subtasks ?? []).map((s) => ({ notes: '', done: false, estimate: 0, timeOverride: null, jira: '', ...s })),
   }));
+  for (const t of tasks) {
+    delete t.jiraStory;
+    delete t.jiraParent;
+  }
   // Enforce the single-active-timer rule even if storage was edited by hand.
   let seenActive = false;
   for (const t of tasks) {
@@ -417,5 +448,6 @@ export function sanitizeState(raw) {
   }
   const clients = Array.isArray(raw.clients) ? raw.clients.filter((c) => c && c.id && c.name) : [];
   const settings = { ...DEFAULT_SETTINGS, ...(raw.settings && typeof raw.settings === 'object' ? raw.settings : {}) };
-  return { version: STATE_VERSION, templates: raw.templates, tasks, clients, settings };
+  const subtaskOrder = Array.isArray(raw.subtaskOrder) ? raw.subtaskOrder.filter((id) => typeof id === 'string') : [];
+  return { version: STATE_VERSION, templates: raw.templates, tasks, clients, settings, subtaskOrder };
 }

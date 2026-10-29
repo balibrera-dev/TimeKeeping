@@ -15,6 +15,7 @@ export function NewTaskModal({ open, onClose, templates, clients, onCreate, onMa
   const [category, setCategory] = useState('Development');
   const [subtasks, setSubtasks] = useState([]);
   const [clientId, setClientId] = useState(null);
+  const [stakeholder, setStakeholder] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -23,6 +24,7 @@ export function NewTaskModal({ open, onClose, templates, clients, onCreate, onMa
       setCategory('Development');
       setSubtasks([]);
       setClientId(null);
+      setStakeholder('');
     }
   }, [open]);
 
@@ -40,7 +42,7 @@ export function NewTaskModal({ open, onClose, templates, clients, onCreate, onMa
 
   const submit = (startNow) => {
     if (!title.trim()) return;
-    onCreate({ title, category, clientId, templateId: templateId || null, subtasks: cleanSubtasks(subtasks), startNow });
+    onCreate({ title, category, clientId, stakeholder, templateId: templateId || null, subtasks: cleanSubtasks(subtasks), startNow });
     onClose();
   };
 
@@ -112,6 +114,9 @@ export function NewTaskModal({ open, onClose, templates, clients, onCreate, onMa
             <ClientSelect clients={clients} value={clientId} onChange={setClientId} />
           </Field>
         </div>
+        <Field label="Stakeholder (optional)">
+          <input className={inputClass} value={stakeholder} onChange={(e) => setStakeholder(e.target.value)} placeholder="Who is this for? e.g. Maria Lopez, Finance" />
+        </Field>
         {clients.length === 0 && (
           <p className="-mt-2 text-xs text-slate-500">
             No clients yet.{' '}

@@ -40,6 +40,7 @@
  * @property {number} estimate  Estimate in minutes.
  * @property {boolean} done
  * @property {string} notes  The subtask's single comment.
+ * @property {string} jira  Jira issue key for this subtask ('' when none).
  * @property {number | null} [timeOverride]  Manually set total (ms) for a completed subtask; replaces its tracked time.
  */
 
@@ -61,6 +62,7 @@
  * @property {InterruptionType | null} interruptType  Set when kind is 'interruption'.
  * @property {string | null} resumeTaskId  Interruptions: task to resume when it ends.
  * @property {string | null} clientId
+ * @property {string} stakeholder  Who the task is for, free text ('' when none).
  * @property {string | null} templateId
  * @property {TaskStatus} status
  * @property {Subtask[]} subtasks
@@ -68,8 +70,7 @@
  * @property {TimeLog[]} logs
  * @property {number | null} activeStart  Start timestamp of the open session, if running.
  * @property {string} notes  Task-level comment (used when the task has no subtasks).
- * @property {string} jiraStory  Jira issue key of the story, e.g. CLA-30533 ('' when none).
- * @property {string} jiraParent  Jira issue key of the parent / epic ('' when none).
+ * @property {string} jira  Jira issue key, e.g. CLA-30533 ('' when none).
  * @property {number} createdAt
  * @property {number | null} completedAt
  */

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { initialState, reducer, sanitizeState } from './reducer.js';
+import { initialState, reducer, sanitizeState, subtaskViewOrder } from './reducer.js';
 import { taskElapsed, sessionsForDay, subtaskTotals } from './sessions.js';
 import { toCSV, dayLogRows } from './export.js';
 import { parseDuration } from './time.js';
@@ -335,8 +335,65 @@ test('subtasks can be reordered and their name and estimate edited', () => {
 
 test('old saved tasks get empty Jira keys and settings get the new defaults', () => {
   const loaded = sanitizeState({ templates: [], tasks: [{ id: 'x', title: 'Old', status: 'idle', subtasks: [], logs: [] }], settings: {} });
-  assert.equal(loaded.tasks[0].jiraStory, '');
-  assert.equal(loaded.tasks[0].jiraParent, '');
+  assert.equal(loaded.tasks[0].jira, '');
+  assert.equal(loaded.tasks[0].stakeholder, '');
+  assert.deepEqual(loaded.subtaskOrder, []);
   assert.equal(loaded.settings.runningOnTop, true);
   assert.equal(loaded.settings.jiraDomain, '');
+});
+
+test('the old Story / Parent pair becomes one Jira key; subtasks get an empty one', () => {
+  const loaded = sanitizeState({
+    templates: [],
+    tasks: [
+      { id: 'a', title: 'A', status: 'idle', jiraStory: 'CLA-1', jiraParent: 'CLA-9', subtasks: [{ id: 's', title: 'S' }], logs: [] },
+      { id: 'b', title: 'B', status: 'idle', jiraParent: 'CLA-9', subtasks: [], logs: [] },
+    ],
+  });
+  assert.equal(loaded.tasks[0].jira, 'CLA-1');
+  assert.equal(loaded.tasks[1].jira, 'CLA-9');
+  assert.equal('jiraStory' in loaded.tasks[0], false);
+  assert.equal(loaded.tasks[0].subtasks[0].jira, '');
+});
+
+test('subtask Jira key is edited with SUBTASK_EDIT', () => {
+  let s = { ...initialState(T0), tasks: [] };
+  s = reducer(s, { type: 'TASK_CREATE', id: 't1', title: 'A', now: T0, subtasks: [{ title: 'One', estimate: 10 }] });
+  const id = byId(s, 't1').subtasks[0].id;
+  s = reducer(s, { type: 'SUBTASK_EDIT', taskId: 't1', subtaskId: id, jira: 'CLA-77' });
+  assert.deepEqual(
+    (({ title, estimate, jira }) => ({ title, estimate, jira }))(byId(s, 't1').subtasks[0]),
+    { title: 'One', estimate: 10, jira: 'CLA-77' },
+  );
+});
+
+test('Subtasks page order: dragged order sticks, new subtasks slot in after their sibling', () => {
+  let s = { ...initialState(T0), tasks: [] };
+  s = reducer(s, { type: 'TASK_CREATE', id: 'tA', title: 'A', now: T0, subtasks: [{ title: 'a1' }, { title: 'a2' }] });
+  s = reducer(s, { type: 'TASK_CREATE', id: 'tB', title: 'B', now: T0, subtasks: [{ title: 'b1' }] });
+  const title = (id) => s.tasks.flatMap((t) => t.subtasks).find((st) => st.id === id).title;
+  const names = () => subtaskViewOrder(s).map(title);
+  assert.deepEqual(names(), ['b1', 'a1', 'a2']); // natural: task order (newest first), then subtask order
+
+  const [b1, a1, a2] = subtaskViewOrder(s);
+  s = reducer(s, { type: 'SUBTASK_VIEW_REORDER', ids: [a2, b1, a1] });
+  assert.deepEqual(names(), ['a2', 'b1', 'a1']);
+
+  s = reducer(s, { type: 'SUBTASK_ADD', taskId: 'tA', title: 'a3', estimate: 5 });
+  assert.deepEqual(names(), ['a2', 'a3', 'b1', 'a1']);
+
+  // Reordering a filtered subset leaves the other rows where they were.
+  const ids = subtaskViewOrder(s);
+  s = reducer(s, { type: 'SUBTASK_VIEW_REORDER', ids: [ids[3], ids[0]] });
+  assert.deepEqual(names(), ['a1', 'a3', 'b1', 'a2']);
+});
+
+test('a task keeps a free-text stakeholder that shows up in the day export', () => {
+  let s = initialState(T0);
+  s = reducer(s, { type: 'TASK_CREATE', id: 't1', title: 'A', stakeholder: '  Maria, Finance ', subtasks: [], startNow: true, now: T0 });
+  assert.equal(byId(s, 't1').stakeholder, 'Maria, Finance');
+  s = reducer(s, { type: 'TASK_UPDATE', id: 't1', patch: { stakeholder: 'Ops team' }, now: T0 });
+  const rows = dayLogRows(s.tasks, T0, T0 + 10 * MIN);
+  assert.equal(rows[0].stakeholder, 'Ops team');
+  assert.match(toCSV(rows).split('\r\n')[0], /^date,client,stakeholder,task,/);
 });

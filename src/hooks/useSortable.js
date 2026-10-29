@@ -14,15 +14,27 @@ const STEP = 14;
  */
 export function useSortable(ids, onReorder) {
   const [drag, setDrag] = useState(null); // { id, order } while dragging
+  // An item can render in more than one layout (e.g. phone cards and a desktop
+  // table); only the one that is on screen is measured.
   const nodes = useRef(new Map());
 
   const register = useCallback(
     (id) => (el) => {
-      if (el) nodes.current.set(id, el);
-      else nodes.current.delete(id);
+      if (!el) return;
+      const set = nodes.current.get(id) ?? new Set();
+      for (const old of set) if (!old.isConnected) set.delete(old);
+      set.add(el);
+      nodes.current.set(id, set);
     },
     [],
   );
+  const rectOf = (id) => {
+    for (const el of nodes.current.get(id) ?? []) {
+      const r = el.getBoundingClientRect();
+      if (r.height > 0) return r;
+    }
+    return null;
+  };
 
   /** Items sorted by the live drag order (unknown items keep their place at the end). */
   const arrange = (items) => {
@@ -59,7 +71,7 @@ export function useSortable(ids, onReorder) {
         let target = 0;
         for (const other of d.order) {
           if (other === d.id) continue;
-          const r = nodes.current.get(other)?.getBoundingClientRect();
+          const r = rectOf(other);
           if (r && y > r.top + r.height / 2) target++;
         }
         if (d.order.indexOf(d.id) === target) return d;
