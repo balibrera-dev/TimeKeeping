@@ -92,8 +92,23 @@ export function SettingsModal({ open, onClose, settings: appSettings, onSave }) 
           </span>
         </label>
 
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={prefs.startedSubtaskOnTop}
+            onChange={(e) => setPrefs((p) => ({ ...p, startedSubtaskOnTop: e.target.checked }))}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-emerald-600"
+          />
+          <span>
+            <span className="block text-sm font-medium">Move a subtask to the top of Subtasks when you start it</span>
+            <span className="block text-xs text-slate-500 dark:text-slate-400">
+              On: the Subtasks page keeps your most recent work at the top, so you can jump back to what you did before. Off: subtasks stay where you dragged them.
+            </span>
+          </span>
+        </label>
+
         <div className="space-y-2 border-t border-slate-200 pt-4 dark:border-slate-800">
-          <Field label="Jira domain" hint="Your Jira site. Tasks can then link to their Story and Parent issues.">
+          <Field label="Jira domain" hint="Your Jira site. Tasks and subtasks can then link to their Jira issues.">
             <input
               className={inputClass}
               inputMode="url"

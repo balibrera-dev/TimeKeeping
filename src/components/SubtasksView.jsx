@@ -301,7 +301,8 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings 
             </table>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {manual ? 'Drag the grip to put subtasks in your own order. ' : ''}Tasks without subtasks aren’t listed here. Calls and breaks stay on the Tasks page.
+            {manual ? 'Drag the grip to put subtasks in your own order. ' : ''}
+            {settings.startedSubtaskOnTop ? 'Starting a subtask moves it to the top, so your recent work stays close. ' : ''}Tasks without subtasks aren’t listed here. Calls and breaks stay on the Tasks page.
           </p>
         </>
       )}

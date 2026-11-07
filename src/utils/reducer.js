@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS = {
   alertSound: true,
   desktopNotifications: false,
   runningOnTop: true,
+  startedSubtaskOnTop: true,
   jiraDomain: '',
 };
 
@@ -175,12 +176,37 @@ function mapTask(state, id, fn) {
   return { ...state, tasks: state.tasks.map((t) => (t.id === id ? fn(t) : t)) };
 }
 
+/** `taskId:subtaskId` of the subtask whose timer is running, or null. */
+function runningSubtaskKey(state) {
+  const t = state.tasks.find((x) => x.status === 'active' && x.kind !== 'interruption');
+  return t?.currentSubtaskId ? `${t.id}:${t.currentSubtaskId}` : null;
+}
+
+/**
+ * When a different subtask starts running, move it to the top of the
+ * Subtasks page order, so the page reads as a history of recent work.
+ */
+function bumpStartedSubtask(prev, next) {
+  if (next === prev || !(next.settings?.startedSubtaskOnTop ?? true)) return next;
+  const key = runningSubtaskKey(next);
+  if (!key || key === runningSubtaskKey(prev)) return next;
+  const id = key.slice(key.indexOf(':') + 1);
+  const order = subtaskViewOrder(next);
+  if (order[0] === id) return next;
+  return { ...next, subtaskOrder: [id, ...order.filter((x) => x !== id)] };
+}
+
 /**
  * Pure state reducer. Every time-related action carries `now` so the reducer
  * stays deterministic and testable.
  * @param {import('../types').TrackerState} state
  */
 export function reducer(state, action) {
+  const next = step(state, action);
+  return action.type === 'HYDRATE' ? next : bumpStartedSubtask(state, next);
+}
+
+function step(state, action) {
   switch (action.type) {
     case 'HYDRATE':
       return action.state;
