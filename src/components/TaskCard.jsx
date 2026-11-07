@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Archive,
+  ArchiveRestore,
   ArrowRightLeft,
   Check,
   CheckCircle2,
@@ -10,7 +12,6 @@ import {
   GripVertical,
   MessageSquare,
   Pencil,
-  Pin,
   Pause,
   Play,
   Plus,
@@ -29,8 +30,11 @@ import { INTERRUPTIONS } from '../types/index.js';
 import { formatClock, formatMinutes, formatTimeOfDay, parseDuration } from '../utils/time.js';
 import { subtaskTitle, subtaskTotals, taskElapsed, taskEstimate, trackedSubtaskTotals } from '../utils/sessions.js';
 
+/** On the narrowest phones the main button shows only its icon, so every control fits. */
+const NARROW_LABEL = 'max-[379px]:sr-only';
+
 /** A task row. Collapsed by default; expand for subtasks, comments and sessions. */
-export function TaskCard({ task, now, actions, hasActive, clients, settings, onManageClients, onOpenSettings, dragHandle, dragging, pinned }) {
+export function TaskCard({ task, now, actions, hasActive, clients, settings, onManageClients, onOpenSettings, dragHandle, dragging, focused }) {
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(null); // 'reset' | 'delete' | null
   const [renaming, setRenaming] = useState(false);
@@ -47,6 +51,10 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
   const sessionCount = task.logs.length + (isActive ? 1 : 0);
 
   useEffect(() => {
+    if (focused) setOpen(true);
+  }, [focused]);
+
+  useEffect(() => {
     if (!confirm) return;
     const id = setTimeout(() => setConfirm(null), 3000);
     return () => clearTimeout(id);
@@ -56,7 +64,7 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
     <div
       className={`rounded-xl border border-l-4 bg-white shadow-sm transition-shadow dark:bg-slate-900 ${
         dragging ? 'relative z-10 opacity-90 shadow-lg ring-2 ring-emerald-400 dark:ring-emerald-600' : ''
-      } ${
+      } ${focused ? 'ring-2 ring-sky-400 dark:ring-sky-600' : ''} ${
         isActive ? 'border-emerald-200 shadow-emerald-100 ring-1 ring-emerald-200 dark:border-emerald-900 dark:shadow-none dark:ring-emerald-900' : 'border-slate-200 dark:border-slate-800'
       }`}
       style={{ borderLeftColor: color }}
@@ -64,7 +72,7 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
       {/* Phone: title on its own row, then timer + controls. sm+: one row. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 sm:px-4">
         <div className="group/title flex min-w-0 basis-full items-start gap-1 sm:flex-1 sm:basis-0 sm:items-center">
-          <DragHandle handle={dragHandle} pinned={pinned} label="Drag to reorder tasks" />
+          <DragHandle handle={dragHandle} label="Drag to reorder tasks" />
           {renaming ? (
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Pencil className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
@@ -98,7 +106,7 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
                   >
                     {task.title}
                   </span>
-                  <StatusBadge status={task.status} />
+                  <StatusBadge status={task.onHold && !isCompleted ? 'onhold' : task.status} />
                   <ClientBadge client={client} />
                   {isInterruption && (
                     <span className="rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ backgroundColor: color }}>
@@ -156,18 +164,28 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
         <div className="flex items-center gap-0.5 sm:gap-1.5">
           {isCompleted ? (
             !isInterruption && (
-              <Button size="sm" icon={RotateCw} onClick={() => actions.reopen(task.id)}>
-                Reopen
+              <Button size="sm" icon={RotateCw} onClick={() => actions.reopen(task.id)} title="Reopen">
+                <span className={NARROW_LABEL}>Reopen</span>
               </Button>
             )
           ) : isActive ? (
-            <Button size="sm" variant="amber" icon={Pause} onClick={() => actions.pause(task.id)}>
-              {isInterruption ? 'End' : 'Pause'}
+            <Button size="sm" variant="amber" icon={Pause} onClick={() => actions.pause(task.id)} title={isInterruption ? 'End' : 'Pause'}>
+              <span className={NARROW_LABEL}>{isInterruption ? 'End' : 'Pause'}</span>
             </Button>
           ) : (
-            <Button size="sm" variant="primary" icon={hasActive ? ArrowRightLeft : Play} onClick={() => actions.start(task.id)}>
-              {hasActive ? 'Switch' : task.status === 'paused' ? 'Resume' : 'Start'}
+            <Button size="sm" variant="primary" icon={hasActive ? ArrowRightLeft : Play} onClick={() => actions.start(task.id)} title={hasActive ? 'Switch' : task.status === 'paused' ? 'Resume' : 'Start'}>
+              <span className={NARROW_LABEL}>{hasActive ? 'Switch' : task.status === 'paused' ? 'Resume' : 'Start'}</span>
             </Button>
+          )}
+          {!isCompleted && !isInterruption && (
+            <Button
+              size="icon"
+              variant="ghost"
+              icon={task.onHold ? ArchiveRestore : Archive}
+              onClick={() => (task.onHold ? actions.unhold(task.id) : actions.hold(task.id))}
+              aria-label={task.onHold ? 'Take off hold' : 'Put on hold'}
+              title={task.onHold ? 'Take off hold: back to Open' : 'Put on hold: park it in the backlog (stops its timer)'}
+            />
           )}
           {!isCompleted && (
             <Button size="icon" variant="ghost" icon={CheckCircle2} onClick={() => actions.complete(task.id)} aria-label="Mark complete" title="Mark complete" />
@@ -502,16 +520,8 @@ function UnassignedRow({ ms, onRemove, onMakeSubtask }) {
  * Grip used to drag a task or subtask (mouse, touch or arrow keys). Shows a
  * pin instead of a grip when the running task is held at the top.
  */
-function DragHandle({ handle, pinned, label, className = '' }) {
-  if (!handle) {
-    return pinned ? (
-      <span className={`flex h-6 w-4 shrink-0 items-center justify-center text-emerald-500 ${className}`} title="The running task stays on top. You can change this in Settings.">
-        <Pin className="h-3.5 w-3.5" aria-hidden="true" />
-      </span>
-    ) : (
-      <span className={`w-4 shrink-0 ${className}`} aria-hidden="true" />
-    );
-  }
+function DragHandle({ handle, label, className = '' }) {
+  if (!handle) return <span className={`w-4 shrink-0 ${className}`} aria-hidden="true" />;
   return (
     <button
       type="button"

@@ -3,6 +3,7 @@ import { CheckCircle2, Clock, CornerDownRight, Moon, Pause, Play, Settings, Squa
 import { Button, ClientBadge, ProgressBar } from './ui.jsx';
 import { SwitchMenu } from './SwitchMenu.jsx';
 import { InterruptMenu } from './InterruptMenu.jsx';
+import { DownloadMenu } from './DownloadMenu.jsx';
 import { INTERRUPTIONS } from '../types/index.js';
 import { formatClock, formatDuration, formatMinutes } from '../utils/time.js';
 import { sessionsForDay, subtaskTotals, taskElapsed, taskEstimate, workSessions } from '../utils/sessions.js';
@@ -20,7 +21,7 @@ export function ActiveBar({ state, activeTask, actions, now, view, setView, them
   const [switchOpen, setSwitchOpen] = useState(false);
   const todayTotal = workSessions(sessionsForDay(state.tasks, now, now)).reduce((sum, s) => sum + s.duration, 0);
   const lastPaused = state.tasks
-    .filter((t) => t.status === 'paused' && t.kind !== 'interruption' && t.logs.length)
+    .filter((t) => t.status === 'paused' && t.kind !== 'interruption' && !t.onHold && t.logs.length)
     .sort((a, b) => b.logs[b.logs.length - 1].endTime - a.logs[a.logs.length - 1].endTime)[0];
   const isInterruption = activeTask?.kind === 'interruption';
   const resumeTask = isInterruption ? state.tasks.find((t) => t.id === activeTask.resumeTaskId && t.status !== 'completed') : null;
@@ -91,6 +92,7 @@ export function ActiveBar({ state, activeTask, actions, now, view, setView, them
             <Clock className="h-4 w-4" aria-hidden="true" />
             Today <span className="tabular font-mono font-semibold text-slate-900 dark:text-slate-100">{formatDuration(todayTotal)}</span>
           </div>
+          <DownloadMenu tasks={state.tasks} clients={state.clients} />
           <Button variant="ghost" size="icon" icon={Settings} onClick={onOpenSettings} aria-label="Settings" title="Settings" />
           <Button variant="ghost" size="icon" icon={theme === 'dark' ? Sun : Moon} onClick={toggleTheme} aria-label="Toggle theme" />
         </div>

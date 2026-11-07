@@ -45,6 +45,12 @@ export const STATUS_STYLES = {
     dot: 'bg-amber-500',
     border: 'border-l-amber-500',
   },
+  onhold: {
+    label: 'On hold',
+    badge: 'bg-sky-50 text-sky-700 ring-sky-600/20 dark:bg-sky-500/10 dark:text-sky-400 dark:ring-sky-500/30',
+    dot: 'bg-sky-500',
+    border: 'border-l-sky-500',
+  },
   completed: {
     label: 'Completed',
     badge: 'bg-slate-100 text-slate-600 ring-slate-500/20 dark:bg-slate-500/10 dark:text-slate-400 dark:ring-slate-500/30',

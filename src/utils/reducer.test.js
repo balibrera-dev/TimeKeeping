@@ -334,11 +334,12 @@ test('subtasks can be reordered and their name and estimate edited', () => {
 });
 
 test('old saved tasks get empty Jira keys and settings get the new defaults', () => {
-  const loaded = sanitizeState({ templates: [], tasks: [{ id: 'x', title: 'Old', status: 'idle', subtasks: [], logs: [] }], settings: {} });
+  const loaded = sanitizeState({ templates: [], tasks: [{ id: 'x', title: 'Old', status: 'idle', subtasks: [], logs: [] }], settings: { runningOnTop: true } });
   assert.equal(loaded.tasks[0].jira, '');
   assert.equal(loaded.tasks[0].stakeholder, '');
   assert.deepEqual(loaded.subtaskOrder, []);
-  assert.equal(loaded.settings.runningOnTop, true);
+  assert.equal('runningOnTop' in loaded.settings, false);
+  assert.equal(loaded.tasks[0].onHold, false);
   assert.equal(loaded.settings.jiraDomain, '');
 });
 
@@ -422,4 +423,29 @@ test('starting a subtask moves it to the top of the Subtasks page, building a hi
   s = reducer(s, { type: 'SETTINGS_UPDATE', patch: { startedSubtaskOnTop: false } });
   s = reducer(s, { type: 'TASK_START', id: 'tA', subtaskId: a2, now: T0 + 3 * MIN });
   assert.deepEqual(names(), ['b1', 'a1', 'a2']);
+});
+
+test('on hold parks a task in the backlog: its timer stops, and starting it again takes it off hold', () => {
+  let s = { ...initialState(T0), tasks: [] };
+  s = reducer(s, { type: 'TASK_CREATE', id: 't1', title: 'A', subtasks: [], startNow: true, now: T0 });
+  s = reducer(s, { type: 'TASK_HOLD', id: 't1', now: T0 + 10 * MIN });
+  const held = byId(s, 't1');
+  assert.equal(held.onHold, true);
+  assert.equal(held.status, 'paused');
+  assert.equal(held.logs.length, 1);
+  assert.equal(dayLogRows(s.tasks, T0, T0 + 20 * MIN)[0].status, 'onhold');
+
+  s = reducer(s, { type: 'TASK_START', id: 't1', now: T0 + 30 * MIN });
+  assert.equal(byId(s, 't1').onHold, false);
+  assert.equal(byId(s, 't1').status, 'active');
+
+  s = reducer(s, { type: 'TASK_HOLD', id: 't1', now: T0 + 40 * MIN });
+  s = reducer(s, { type: 'TASK_UNHOLD', id: 't1' });
+  assert.equal(byId(s, 't1').onHold, false);
+  assert.equal(byId(s, 't1').status, 'paused');
+
+  // Completed tasks and calls/breaks can't be put on hold.
+  s = reducer(s, { type: 'TASK_COMPLETE', id: 't1', now: T0 + 50 * MIN });
+  s = reducer(s, { type: 'TASK_HOLD', id: 't1', now: T0 + 51 * MIN });
+  assert.equal(byId(s, 't1').onHold, false);
 });

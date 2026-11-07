@@ -64,6 +64,8 @@ export function useTracker() {
       reset: (id) => dispatch({ type: 'TASK_RESET', id }),
       complete: (id) => dispatch({ type: 'TASK_COMPLETE', id, now: now() }),
       reopen: (id) => dispatch({ type: 'TASK_REOPEN', id }),
+      hold: (id) => dispatch({ type: 'TASK_HOLD', id, now: now() }),
+      unhold: (id) => dispatch({ type: 'TASK_UNHOLD', id }),
       /** Call / break / lunch: stops current work and tracks the interruption. */
       startInterruption: (interruptType, title, clientId) =>
         dispatch({ type: 'INTERRUPT_START', id: uid(), interruptType, title, clientId, now: now() }),

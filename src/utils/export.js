@@ -16,7 +16,7 @@ export function dayLogRows(tasks, dayTs, now, clients = []) {
       subtask: subtaskTitle(s.task, s.subtaskId),
       type: s.task.kind === 'interruption' ? s.task.interruptType : 'task',
       category: s.task.category,
-      status: s.task.status,
+      status: s.task.onHold ? 'onhold' : s.task.status,
       start: isoLocal(s.startTime),
       end: isoLocal(s.endTime),
       durationMinutes: Math.round((s.duration / 60_000) * 100) / 100,

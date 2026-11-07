@@ -37,6 +37,14 @@ export default function App() {
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [created, setCreated] = useState(null); // { id, title } of a task created but not started
+  const [focusTaskId, setFocusTaskId] = useState(null); // task to show on the Tasks page
+  const openTask = useCallback(
+    (id) => {
+      setFocusTaskId(id);
+      setView('tasks');
+    },
+    [setView],
+  );
 
   const onCreated = useCallback((id, title) => setCreated({ id, title }), []);
   const dismissCreated = useCallback(() => setCreated(null), []);
@@ -71,10 +79,12 @@ export default function App() {
             onManageTemplates={() => setView('templates')}
             onManageClients={() => setView('clients')}
             onOpenSettings={() => setSettingsOpen(true)}
+            focusTaskId={focusTaskId}
+            onFocused={() => setFocusTaskId(null)}
           />
         )}
         {!legalDoc && view === 'subtasks' && (
-          <SubtasksView state={state} actions={actions} now={now} onOpenTasks={() => setView('tasks')} onOpenSettings={() => setSettingsOpen(true)} />
+          <SubtasksView state={state} actions={actions} now={now} onOpenTasks={() => setView('tasks')} onOpenTask={openTask} onOpenSettings={() => setSettingsOpen(true)} />
         )}
         {!legalDoc && view === 'calendar' && <CalendarView tasks={state.tasks} clients={state.clients} now={now} />}
         {!legalDoc && view === 'clients' && <ClientsView state={state} actions={actions} now={now} />}

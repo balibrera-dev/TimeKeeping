@@ -63,6 +63,7 @@
  * @property {string | null} resumeTaskId  Interruptions: task to resume when it ends.
  * @property {string | null} clientId
  * @property {string} stakeholder  Who the task is for, free text ('' when none).
+ * @property {boolean} onHold  Set aside in the backlog: hidden from Open and Switch until started again.
  * @property {string | null} templateId
  * @property {TaskStatus} status
  * @property {Subtask[]} subtasks
@@ -83,7 +84,6 @@
  * @property {EstimateAction} onEstimateReached  'stay' (default) or 'next' to move to the next subtask automatically.
  * @property {boolean} alertSound  Play a ping with the alert.
  * @property {boolean} desktopNotifications  Also show a system notification when the tab is in the background.
- * @property {boolean} runningOnTop  Show the running task at the top of the task list (default) or keep it in its place.
  * @property {boolean} startedSubtaskOnTop  Starting a subtask moves it to the top of the Subtasks page order (default on).
  * @property {string} jiraDomain  Jira site, e.g. https://business.atlassian.net, used to open task and subtask issues.
  */
