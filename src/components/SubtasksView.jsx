@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowRightLeft, ArrowUp, ChevronDown, GripVertical, ListChecks, MessageSquare, Pause, Pencil, Play, Search, UserRound } from 'lucide-react';
+import { ArrowDown, ArrowRightLeft, ArrowUp, CheckCircle2, ChevronDown, Circle, GripVertical, ListChecks, MessageSquare, Pause, Pencil, Play, Search, Trash2, UserRound } from 'lucide-react';
 import { ClientBadge, ClientSelect, EmptyState, ProgressBar, inputClass } from './ui.jsx';
 import { JiraChip, JiraDomainHint, JiraKeyInput } from './Jira.jsx';
 import { CommentBox } from './CommentBox.jsx';
@@ -10,12 +10,14 @@ import { formatClock, formatMinutes } from '../utils/time.js';
 
 const FILTERS = [
   { id: 'open', label: 'Open' },
+  { id: 'hold', label: 'On hold' },
   { id: 'done', label: 'Done' },
   { id: 'all', label: 'All' },
 ];
 
 const MATCHERS = {
-  open: (r) => !r.done,
+  open: (r) => !r.done && !r.onHold,
+  hold: (r) => !r.done && r.onHold,
   done: (r) => r.done,
   all: () => true,
 };
@@ -36,7 +38,7 @@ const COLUMNS = [
  * keep your own order (drag the grip); the pencil opens the subtask's details
  * (name, estimate, Jira key, comment).
  */
-export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings }) {
+export function SubtasksView({ state, actions, now, onOpenTasks, onOpenTask, onOpenSettings }) {
   const [filter, setFilter] = useState('open');
   const [query, setQuery] = useState('');
   const [clientFilter, setClientFilter] = useState(null);
@@ -66,6 +68,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings 
           tracking: isCurrent && task.status === 'active',
           last: isCurrent && task.status === 'paused',
           done: subtask.done || task.status === 'completed',
+          onHold: !!task.onHold && task.status !== 'completed',
           canTrack: task.status !== 'completed',
         });
       });
@@ -131,13 +134,13 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings 
             <ClientSelect clients={state.clients} value={clientFilter} onChange={setClientFilter} />
           </div>
         )}
-        <div className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900">
+        <div className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900">
           {FILTERS.map((f) => (
             <button
               key={f.id}
               type="button"
               onClick={() => setFilter(f.id)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium ${filter === f.id ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-600 dark:text-slate-400'}`}
+              className={`whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium ${filter === f.id ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-600 dark:text-slate-400'}`}
             >
               {f.label} <span className="text-slate-400">{counts[f.id]}</span>
             </button>
@@ -160,7 +163,13 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings 
         </EmptyState>
       ) : rows.length === 0 ? (
         <EmptyState icon={Search} title="Nothing matches">
-          {query || clientFilter ? 'Try a different search or client.' : filter === 'done' ? 'No subtasks are done yet.' : 'Every subtask is done. Nice work.'}
+          {query || clientFilter
+            ? 'Try a different search or client.'
+            : filter === 'done'
+              ? 'No subtasks are done yet.'
+              : filter === 'hold'
+                ? 'No tasks are on hold.'
+                : 'Every open subtask is done. Nice work.'}
         </EmptyState>
       ) : (
         <>
@@ -181,7 +190,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings 
                   <div className="min-w-0 flex-1">
                     <SubtaskName row={r} actions={actions} />
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                      <span className="min-w-0 break-words">{r.task.title}</span>
+                      <TaskLink row={r} onOpenTask={onOpenTask} className="min-w-0 break-words" />
                       <ClientBadge client={r.client} />
                       <Stakeholder name={r.task.stakeholder} />
                     </div>
@@ -191,9 +200,10 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings 
                       <ProgressBar value={r.spent} max={r.subtask.estimate * 60_000} className="max-w-28 flex-1" />
                     </div>
                   </div>
-                  <div className="flex flex-col items-center gap-2">
+                  <div className="flex flex-col items-center gap-1">
                     <DoneBox row={r} actions={actions} />
                     <EditButton row={r} open={editing === r.subtask.id} onClick={() => toggleEdit(r.subtask.id)} />
+                    <DeleteButton row={r} actions={actions} />
                   </div>
                 </div>
                 {editing === r.subtask.id && (
@@ -226,6 +236,9 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings 
                   <th className="w-10 px-2 py-2">
                     <span className="sr-only">Edit</span>
                   </th>
+                  <th className="w-10 py-2 pr-2">
+                    <span className="sr-only">Delete</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -249,9 +262,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings 
                         <SubtaskName row={r} actions={actions} />
                       </td>
                       <td className="max-w-xs px-3 py-2">
-                        <div className="truncate text-slate-700 dark:text-slate-300" title={r.task.title}>
-                          {r.task.title}
-                        </div>
+                        <TaskLink row={r} onOpenTask={onOpenTask} className="block max-w-full truncate text-slate-700 dark:text-slate-300" />
                         <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                           <ClientBadge client={r.client} />
                           <span className="truncate">{r.task.category}</span>
@@ -276,10 +287,13 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings 
                       <td className="px-2 py-2 text-center">
                         <EditButton row={r} open={editing === r.subtask.id} onClick={() => toggleEdit(r.subtask.id)} />
                       </td>
+                      <td className="py-2 pr-2 text-center">
+                        <DeleteButton row={r} actions={actions} />
+                      </td>
                     </tr>
                     {editing === r.subtask.id && (
                       <tr className="bg-slate-50/70 dark:bg-slate-900/60">
-                        <td colSpan={canDrag ? 10 : 9} className="px-3 py-3">
+                        <td colSpan={canDrag ? 11 : 10} className="px-3 py-3">
                           <SubtaskDetails row={r} actions={actions} domain={settings.jiraDomain} onOpenSettings={onOpenSettings} className="md:grid-cols-2" />
                         </td>
                       </tr>
@@ -295,7 +309,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenSettings 
                   </td>
                   <td className="tabular px-3 py-2 text-right font-mono">{formatClock(totals.spent)}</td>
                   <td className="px-3 py-2 text-right">{formatMinutes(totals.estimate)}</td>
-                  <td colSpan={3} />
+                  <td colSpan={4} />
                 </tr>
               </tfoot>
             </table>
@@ -401,16 +415,62 @@ function Progress({ row }) {
   );
 }
 
+/** Same check-circle as "Mark complete" on the Tasks page; filled when done. */
 function DoneBox({ row, actions }) {
+  const done = row.subtask.done;
+  const Icon = done ? CheckCircle2 : Circle;
   return (
-    <input
-      type="checkbox"
-      checked={row.subtask.done}
+    <button
+      type="button"
       disabled={!row.canTrack}
-      onChange={() => actions.toggleSubtask(row.task.id, row.subtask.id)}
-      className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 accent-emerald-600 disabled:opacity-50 md:mt-0"
-      aria-label={`Mark “${row.subtask.title}” ${row.subtask.done ? 'not done' : 'done'}`}
-    />
+      onClick={() => actions.toggleSubtask(row.task.id, row.subtask.id)}
+      aria-pressed={done}
+      className={`rounded p-1 disabled:cursor-not-allowed disabled:opacity-50 ${
+        done ? 'text-emerald-600 hover:text-emerald-500 dark:text-emerald-400' : 'text-slate-400 hover:bg-slate-100 hover:text-emerald-600 dark:hover:bg-slate-800 dark:hover:text-emerald-400'
+      }`}
+      aria-label={`Mark “${row.subtask.title}” ${done ? 'not done' : 'done'}`}
+      title={done ? 'Done. Click to reopen' : 'Mark done'}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
+/** Delete in two clicks, like tasks on the Tasks page. */
+function DeleteButton({ row, actions }) {
+  const [confirm, setConfirm] = useState(false);
+  useEffect(() => {
+    if (!confirm) return;
+    const id = setTimeout(() => setConfirm(false), 3000);
+    return () => clearTimeout(id);
+  }, [confirm]);
+  return (
+    <button
+      type="button"
+      onClick={() => (confirm ? actions.removeSubtask(row.task.id, row.subtask.id) : setConfirm(true))}
+      className={`rounded p-1 ${confirm ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400' : 'text-slate-400 hover:bg-slate-100 hover:text-rose-600 dark:hover:bg-slate-800'}`}
+      aria-label={confirm ? `Click again to delete “${row.subtask.title}”` : `Delete “${row.subtask.title}”`}
+      title={confirm ? 'Click again to delete this subtask' : 'Delete subtask'}
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
+  );
+}
+
+/** The task's name: opens it on the Tasks page (without starting it). */
+function TaskLink({ row, onOpenTask, className = '' }) {
+  return (
+    <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => onOpenTask?.(row.task.id)}
+        className={`text-left hover:text-sky-700 hover:underline dark:hover:text-sky-400 ${className}`}
+        title={`Open “${row.task.title}” on the Tasks page`}
+      >
+        {row.task.title}
+      </button>
+      {row.onHold && <span className="shrink-0 rounded-full bg-sky-50 px-1.5 text-[11px] font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-400">On hold</span>}
+    </span>
   );
 }
 

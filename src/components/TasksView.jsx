@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Plus, Search } from 'lucide-react';
 import { Button, ClientSelect, EmptyState, inputClass } from './ui.jsx';
 import { TaskCard } from './TaskCard.jsx';
@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS } from '../utils/reducer.js';
 
 const FILTERS = [
   { id: 'open', label: 'Open' },
+  { id: 'hold', label: 'On hold' },
   { id: 'completed', label: 'Completed' },
   { id: 'interruptions', label: 'Calls & breaks' },
   { id: 'all', label: 'All' },
@@ -15,14 +16,18 @@ const FILTERS = [
 
 const isWork = (t) => t.kind !== 'interruption';
 const MATCHERS = {
-  open: (t) => isWork(t) && t.status !== 'completed',
+  open: (t) => isWork(t) && t.status !== 'completed' && !t.onHold,
+  hold: (t) => isWork(t) && t.status !== 'completed' && !!t.onHold,
   completed: (t) => isWork(t) && t.status === 'completed',
   interruptions: (t) => !isWork(t),
   all: () => true,
 };
 
-export function TasksView({ state, activeTask, actions, now, onManageTemplates, onManageClients, onCreated, onOpenSettings }) {
-  const [filter, setFilter] = useState('open');
+/** The first filter tab that shows this task, so a task opened from elsewhere is visible. */
+const filterFor = (task) => (task ? FILTERS.find((f) => f.id !== 'all' && MATCHERS[f.id](task))?.id ?? 'all' : 'open');
+
+export function TasksView({ state, activeTask, actions, now, onManageTemplates, onManageClients, onCreated, onOpenSettings, focusTaskId, onFocused }) {
+  const [filter, setFilter] = useState(() => filterFor(state.tasks.find((t) => t.id === focusTaskId)));
   const [query, setQuery] = useState('');
   const [clientFilter, setClientFilter] = useState(null);
   const [creating, setCreating] = useState(false);
@@ -45,22 +50,37 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
       t.notes.toLowerCase().includes(q) ||
       t.jira?.toLowerCase().includes(q) ||
       t.subtasks.some((s) => s.title.toLowerCase().includes(q) || s.notes?.toLowerCase().includes(q) || s.jira?.toLowerCase().includes(q));
-    // Tasks keep the order you drag them into (their order in storage). The
-    // running task can be pinned on top (setting), and completed ones go last.
+    // Tasks keep the order you drag them into (their order in storage), even
+    // when one starts; completed ones go last.
     return state.tasks
       .filter(MATCHERS[filter])
       .filter((t) => !clientFilter || t.clientId === clientFilter)
       .filter(matches);
   }, [state.tasks, state.clients, filter, query, clientFilter]);
 
-  const pinned = visible.filter((t) => settings.runningOnTop && t.status === 'active');
   const done = visible.filter((t) => t.status === 'completed');
-  const movable = visible.filter((t) => !pinned.includes(t) && !done.includes(t));
+  const movable = visible.filter((t) => !done.includes(t));
   const sortable = useSortable(
     movable.map((t) => t.id),
     actions.reorderTasks,
   );
-  const ordered = [...pinned, ...sortable.arrange(movable), ...done];
+  const ordered = [...sortable.arrange(movable), ...done];
+
+  // Opened from another page (e.g. a task name on Subtasks): show its tab,
+  // scroll to it and expand it, without starting anything.
+  useEffect(() => {
+    if (!focusTaskId) return;
+    const task = state.tasks.find((t) => t.id === focusTaskId);
+    if (task && !MATCHERS[filter](task)) setFilter(filterFor(task));
+    setQuery('');
+    setClientFilter(null);
+    const id = requestAnimationFrame(() => document.getElementById(`task-${focusTaskId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+    const timer = setTimeout(() => onFocused?.(), 2500);
+    return () => {
+      cancelAnimationFrame(id);
+      clearTimeout(timer);
+    };
+  }, [focusTaskId]);
   const canDrag = (t) => movable.includes(t) && movable.length > 1;
 
   return (
@@ -76,13 +96,13 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
             <ClientSelect clients={state.clients} value={clientFilter} onChange={setClientFilter} />
           </div>
         )}
-        <div className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900">
+        <div className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900">
           {FILTERS.map((f) => (
             <button
               key={f.id}
               type="button"
               onClick={() => setFilter(f.id)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+              className={`whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium ${
                 filter === f.id ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-600 dark:text-slate-400'
               }`}
             >
@@ -114,6 +134,8 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
             ? 'Try a different search or client.'
             : filter === 'completed'
               ? 'No completed tasks yet.'
+              : filter === 'hold'
+                ? 'Nothing on hold. Use the hold button on a task to park it in your backlog.'
               : filter === 'interruptions'
                 ? 'No calls or breaks tracked yet. Use the Call / Break / Lunch buttons in the top bar.'
                 : 'All tasks are completed. Nice work.'}
@@ -121,7 +143,7 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
       ) : (
         <div className="space-y-3">
           {ordered.map((t) => (
-            <div key={t.id} ref={sortable.register(t.id)}>
+            <div key={t.id} id={`task-${t.id}`} ref={sortable.register(t.id)} className="scroll-mt-40">
               <TaskCard
                 task={t}
                 now={now}
@@ -133,7 +155,7 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
                 onOpenSettings={onOpenSettings}
                 dragHandle={canDrag(t) ? sortable.handleProps(t.id) : null}
                 dragging={sortable.draggingId === t.id}
-                pinned={pinned.includes(t)}
+                focused={focusTaskId === t.id}
               />
             </div>
           ))}

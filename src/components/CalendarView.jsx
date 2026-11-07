@@ -1,16 +1,14 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, FileJson, FileSpreadsheet } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui.jsx';
 import { CalendarGrid } from './CalendarGrid.jsx';
 import { MetricsPanel } from './MetricsPanel.jsx';
 import { addDays, formatDateLong, formatDateShort, isSameDay, startOfDay, startOfWeek } from '../utils/time.js';
 import { sessionsInRange, workSessions } from '../utils/sessions.js';
-import { exportDay } from '../utils/export.js';
 
 export function CalendarView({ tasks, clients, now }) {
   const [mode, setMode] = useState('day');
   const [anchor, setAnchor] = useState(() => startOfDay(Date.now()));
-  const [flash, setFlash] = useState('');
 
   const days = useMemo(() => {
     if (mode === 'day') return [startOfDay(anchor)];
@@ -26,13 +24,6 @@ export function CalendarView({ tasks, clients, now }) {
   const isCurrent = mode === 'day' ? isSameDay(anchor, now) : startOfWeek(anchor) === startOfWeek(now);
   const title = mode === 'day' ? formatDateLong(anchor) : `${formatDateShort(days[0])} – ${formatDateShort(days[6])}`;
   const label = mode === 'day' ? (isSameDay(anchor, now) ? 'today' : 'this day') : 'this week';
-  const exportDayTs = mode === 'day' ? anchor : isCurrent ? startOfDay(now) : anchor;
-
-  const doExport = (format) => {
-    const n = exportDay(tasks, exportDayTs, format, Date.now(), clients);
-    setFlash(n ? `Exported ${n} session${n === 1 ? '' : 's'} for ${formatDateShort(exportDayTs)}` : `No sessions on ${formatDateShort(exportDayTs)}, exported an empty file`);
-    setTimeout(() => setFlash(''), 3500);
-  };
 
   return (
     <div className="space-y-4">
@@ -58,18 +49,6 @@ export function CalendarView({ tasks, clients, now }) {
         </div>
         <h1 className="mr-auto text-lg font-semibold">{title}</h1>
 
-        <div className="flex items-center gap-2">
-          {flash && <span className="text-xs text-emerald-600 dark:text-emerald-400">{flash}</span>}
-          <span className="hidden items-center gap-1 text-xs text-slate-500 md:flex">
-            <Download className="h-3.5 w-3.5" /> {formatDateShort(exportDayTs)}
-          </span>
-          <Button size="sm" icon={FileSpreadsheet} onClick={() => doExport('csv')}>
-            CSV
-          </Button>
-          <Button size="sm" icon={FileJson} onClick={() => doExport('json')}>
-            JSON
-          </Button>
-        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">

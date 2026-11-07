@@ -10,7 +10,6 @@ export const DEFAULT_SETTINGS = {
   onEstimateReached: 'stay',
   alertSound: true,
   desktopNotifications: false,
-  runningOnTop: true,
   startedSubtaskOnTop: true,
   jiraDomain: '',
 };
@@ -65,6 +64,7 @@ function newTask(fields, now) {
     resumeTaskId: fields.resumeTaskId ?? null,
     clientId: fields.clientId || null,
     stakeholder: (fields.stakeholder ?? '').trim(),
+    onHold: false,
     templateId: fields.templateId ?? null,
     status: 'idle',
     subtasks: (fields.subtasks ?? []).map((s) => ({
@@ -284,6 +284,7 @@ function step(state, action) {
               status: 'active',
               activeStart: action.now,
               completedAt: null,
+              onHold: false,
               currentSubtaskId: pickSubtask(t, action.subtaskId),
             };
           }
@@ -302,7 +303,14 @@ function step(state, action) {
     case 'TASK_RESET':
       return mapTask(state, action.id, (t) => ({ ...t, status: 'idle', logs: [], activeStart: null, completedAt: null }));
     case 'TASK_COMPLETE':
-      return mapTask(state, action.id, (t) => ({ ...closeSession(t, action.now, 'completed'), completedAt: action.now }));
+      return mapTask(state, action.id, (t) => ({ ...closeSession(t, action.now, 'completed'), completedAt: action.now, onHold: false }));
+    /** Backlog: set a task aside (stopping its timer). Starting it again takes it off hold. */
+    case 'TASK_HOLD':
+      return mapTask(state, action.id, (t) =>
+        t.kind === 'interruption' || t.status === 'completed' ? t : { ...(t.status === 'active' ? stopRunning(t, action.now) : t), onHold: true },
+      );
+    case 'TASK_UNHOLD':
+      return mapTask(state, action.id, (t) => ({ ...t, onHold: false }));
     case 'TASK_REOPEN':
       return mapTask(state, action.id, (t) => ({ ...t, status: t.logs.length ? 'paused' : 'idle', completedAt: null }));
 
@@ -452,6 +460,7 @@ export function sanitizeState(raw) {
     resumeTaskId: null,
     clientId: null,
     stakeholder: '',
+    onHold: false,
     currentSubtaskId: null,
     ...t,
     // One Jira key per task now; older data had a Story and a Parent (Story wins).
@@ -474,6 +483,7 @@ export function sanitizeState(raw) {
   }
   const clients = Array.isArray(raw.clients) ? raw.clients.filter((c) => c && c.id && c.name) : [];
   const settings = { ...DEFAULT_SETTINGS, ...(raw.settings && typeof raw.settings === 'object' ? raw.settings : {}) };
+  delete settings.runningOnTop; // retired: the Tasks list no longer moves the running task
   const subtaskOrder = Array.isArray(raw.subtaskOrder) ? raw.subtaskOrder.filter((id) => typeof id === 'string') : [];
   return { version: STATE_VERSION, templates: raw.templates, tasks, clients, settings, subtaskOrder };
 }

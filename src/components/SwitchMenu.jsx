@@ -19,7 +19,8 @@ export function SwitchMenu({ tasks, clients, activeTask, now, onSwitch, onQuickC
   const candidates = useMemo(() => {
     const q = query.trim().toLowerCase();
     return tasks
-      .filter((t) => t.status !== 'completed' && t.id !== activeTask?.id)
+      // On-hold (backlog) tasks only show up when you search for them.
+      .filter((t) => t.status !== 'completed' && t.id !== activeTask?.id && (q || !t.onHold))
       .filter((t) => {
         if (!q) return true;
         const client = clients.find((c) => c.id === t.clientId);
