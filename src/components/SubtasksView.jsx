@@ -450,7 +450,7 @@ function DeleteButton({ row, actions }) {
       onClick={() => (confirm ? actions.removeSubtask(row.task.id, row.subtask.id) : setConfirm(true))}
       className={`rounded p-1 ${confirm ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400' : 'text-slate-400 hover:bg-slate-100 hover:text-rose-600 dark:hover:bg-slate-800'}`}
       aria-label={confirm ? `Click again to delete “${row.subtask.title}”` : `Delete “${row.subtask.title}”`}
-      title={confirm ? 'Click again to delete this subtask' : 'Delete subtask'}
+      title={confirm ? 'Click again to delete. Its tracked time stays on the task as "Not on a subtask".' : 'Delete subtask'}
     >
       <Trash2 className="h-4 w-4" />
     </button>

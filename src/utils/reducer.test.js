@@ -449,3 +449,17 @@ test('on hold parks a task in the backlog: its timer stops, and starting it agai
   s = reducer(s, { type: 'TASK_HOLD', id: 't1', now: T0 + 51 * MIN });
   assert.equal(byId(s, 't1').onHold, false);
 });
+
+test('removing the last subtask keeps its time on the task, as time not on a subtask', () => {
+  let s = { ...initialState(T0), tasks: [] };
+  s = reducer(s, { type: 'TASK_CREATE', id: 't1', title: 'A', now: T0, subtasks: [{ title: 'Only', estimate: 10 }], startNow: true });
+  const only = byId(s, 't1').subtasks[0].id;
+  s = reducer(s, { type: 'TASK_PAUSE', id: 't1', now: T0 + 20 * MIN });
+  s = reducer(s, { type: 'SUBTASK_REMOVE', taskId: 't1', subtaskId: only, now: T0 + 21 * MIN });
+  const task = byId(s, 't1');
+  assert.equal(task.subtasks.length, 0);
+  assert.equal(taskElapsed(task, T0 + 30 * MIN), 20 * MIN);
+  s = reducer(s, { type: 'UNASSIGNED_TO_SUBTASK', taskId: 't1', title: 'Recovered' });
+  assert.equal(byId(s, 't1').subtasks[0].title, 'Recovered');
+  assert.equal(subtaskTotals(byId(s, 't1'), T0 + 30 * MIN).get(byId(s, 't1').subtasks[0].id), 20 * MIN);
+});

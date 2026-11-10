@@ -1,30 +1,50 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { taskColor } from './ui.jsx';
 import { DAY, HOUR, addDays, formatClock, formatDuration, formatTimeOfDay, isSameDay, startOfDay } from '../utils/time.js';
 import { countsAsWork, sessionsInRange, subtaskTitle, workSessions } from '../utils/sessions.js';
 
-const HOUR_PX = 56;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+/** Zoom levels: minutes per grid row, and how tall an hour is at that level. */
+export const CALENDAR_ZOOMS = [
+  { minutes: 60, label: '1 h', hourPx: 56 },
+  { minutes: 30, label: '30 min', hourPx: 96 },
+  { minutes: 15, label: '15 min', hourPx: 176 },
+  { minutes: 5, label: '5 min', hourPx: 480 },
+];
+export const zoomFor = (minutes) => CALENDAR_ZOOMS.find((z) => z.minutes === minutes) ?? CALENDAR_ZOOMS[0];
 
 /**
  * Outlook-style time grid. `days` is a list of day-start timestamps (1 for
  * Day view, 7 for Week view). Each tracked session becomes a block.
  */
-export function CalendarGrid({ days, tasks, clients, now, onSelectDay }) {
+export function CalendarGrid({ days, tasks, clients, now, onSelectDay, zoom = 60 }) {
   const scrollRef = useRef(null);
+  const { hourPx, minutes: slotMinutes } = zoomFor(zoom);
+  const lastPx = useRef(hourPx);
   const rangeStart = days[0];
   const rangeEnd = addDays(days[days.length - 1], 1);
   const sessions = useMemo(() => sessionsInRange(tasks, rangeStart, rangeEnd, now), [tasks, rangeStart, rangeEnd, now]);
 
-  // Scroll to the first session of the range, or 7am, once per range.
+  // Scroll to just before the first session of the range, or 7am, once per range.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const first = sessions[0];
-    const hour = first ? Math.max(0, new Date(first.startTime).getHours() - 1) : 7;
-    el.scrollTop = Math.max(0, Math.min(hour, 7) * HOUR_PX - 12);
+    const start = first && new Date(first.startTime);
+    const hour = start ? Math.max(0, start.getHours() + start.getMinutes() / 60 - 0.25) : 7;
+    el.scrollTop = Math.max(0, hour * hourPx - 12);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeStart, days.length]);
+
+  // Zooming keeps the time at the top of the view where it was.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const prev = lastPx.current;
+    lastPx.current = hourPx;
+    if (!el || prev === hourPx) return;
+    el.scrollTop = (el.scrollTop / prev) * hourPx;
+  }, [hourPx]);
 
   const isWeek = days.length > 1;
 
@@ -64,16 +84,24 @@ export function CalendarGrid({ days, tasks, clients, now, onSelectDay }) {
 
       {/* Time grid */}
       <div ref={scrollRef} className="relative max-h-[calc(100vh-17rem)] min-h-[24rem] overflow-y-auto">
-        <div className="grid" style={{ gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))`, height: 24 * HOUR_PX }}>
+        <div className="grid" style={{ gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))`, height: 24 * hourPx }}>
           <div className="relative">
             {HOURS.map((h) => (
-              <div key={h} className="absolute right-2 -translate-y-1/2 text-[11px] text-slate-400" style={{ top: h * HOUR_PX }}>
+              <div key={h} className="absolute right-2 -translate-y-1/2 text-[11px] text-slate-400" style={{ top: h * hourPx }}>
                 {h === 0 ? '' : new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: 'numeric' })}
               </div>
             ))}
+            {slotMinutes < 60 &&
+              HOURS.flatMap((h) =>
+                slotStarts(slotMinutes).map((m) => (
+                  <div key={`${h}:${m}`} className="absolute right-2 -translate-y-1/2 text-[10px] text-slate-300 dark:text-slate-600" style={{ top: (h + m / 60) * hourPx }}>
+                    :{String(m).padStart(2, '0')}
+                  </div>
+                )),
+              )}
           </div>
           {days.map((d) => (
-            <DayColumn key={d} dayStart={d} sessions={clipToDay(sessions, d)} clients={clients} now={now} compact={isWeek} />
+            <DayColumn key={d} dayStart={d} sessions={clipToDay(sessions, d)} clients={clients} now={now} compact={isWeek} hourPx={hourPx} slotMinutes={slotMinutes} />
           ))}
         </div>
       </div>
@@ -81,19 +109,21 @@ export function CalendarGrid({ days, tasks, clients, now, onSelectDay }) {
   );
 }
 
-function DayColumn({ dayStart, sessions, clients, now, compact }) {
+function DayColumn({ dayStart, sessions, clients, now, compact, hourPx, slotMinutes }) {
   const today = isSameDay(dayStart, now);
-  const nowTop = ((now - startOfDay(now)) / HOUR) * HOUR_PX;
+  const nowTop = ((now - startOfDay(now)) / HOUR) * hourPx;
   return (
     <div className={`relative border-l border-slate-200 dark:border-slate-800 ${today ? 'bg-emerald-50/30 dark:bg-emerald-500/[0.03]' : ''}`}>
       {HOURS.map((h) => (
-        <div key={h} className="absolute inset-x-0 border-t border-slate-100 dark:border-slate-800/80" style={{ top: h * HOUR_PX }}>
-          <div className="absolute inset-x-0 border-t border-dashed border-slate-50 dark:border-slate-800/40" style={{ top: HOUR_PX / 2 }} />
+        <div key={h} className="absolute inset-x-0 border-t border-slate-100 dark:border-slate-800/80" style={{ top: h * hourPx }}>
+          {(slotMinutes === 60 ? [30] : slotStarts(slotMinutes)).map((m) => (
+            <div key={m} className="absolute inset-x-0 border-t border-dashed border-slate-50 dark:border-slate-800/40" style={{ top: (m / 60) * hourPx }} />
+          ))}
         </div>
       ))}
 
       {sessions.map((s) => (
-        <SessionBlock key={`${s.task.id}-${s.startTime}`} session={s} dayStart={dayStart} clients={clients} compact={compact} />
+        <SessionBlock key={`${s.task.id}-${s.startTime}`} session={s} dayStart={dayStart} clients={clients} compact={compact} hourPx={hourPx} />
       ))}
 
       {today && (
@@ -107,12 +137,12 @@ function DayColumn({ dayStart, sessions, clients, now, compact }) {
   );
 }
 
-function SessionBlock({ session, dayStart, clients, compact }) {
+function SessionBlock({ session, dayStart, clients, compact, hourPx }) {
   const { task, startTime, endTime, duration, live, subtaskId } = session;
   const subtask = subtaskTitle(task, subtaskId);
   const client = clients.find((c) => c.id === task.clientId);
-  const top = ((startTime - dayStart) / HOUR) * HOUR_PX;
-  const height = Math.max(3, (duration / HOUR) * HOUR_PX);
+  const top = ((startTime - dayStart) / HOUR) * hourPx;
+  const height = Math.max(3, (duration / HOUR) * hourPx);
   const color = taskColor(task, clients);
   // Idle is drawn hatched and faint: recorded, but not counted as work.
   const idle = !countsAsWork(task);
@@ -154,6 +184,11 @@ function SessionBlock({ session, dayStart, clients, compact }) {
       )}
     </div>
   );
+}
+
+/** Minute marks inside an hour for a slot size, e.g. 15 → [15, 30, 45]. */
+function slotStarts(slotMinutes) {
+  return Array.from({ length: 60 / slotMinutes - 1 }, (_, i) => (i + 1) * slotMinutes);
 }
 
 /** Sessions overlapping a day, trimmed so a block never spills past midnight. */

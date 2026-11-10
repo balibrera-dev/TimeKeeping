@@ -1,13 +1,34 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from './ui.jsx';
-import { CalendarGrid } from './CalendarGrid.jsx';
+import { CALENDAR_ZOOMS, CalendarGrid, zoomFor } from './CalendarGrid.jsx';
 import { MetricsPanel } from './MetricsPanel.jsx';
 import { addDays, formatDateLong, formatDateShort, isSameDay, startOfDay, startOfWeek } from '../utils/time.js';
 import { sessionsInRange, workSessions } from '../utils/sessions.js';
 
+const ZOOM_KEY = 'balisoft-timekeeping:calendarZoom';
+
+/** Remembered per browser; a blocked or empty storage just means the 1 h default. */
+function loadZoom() {
+  try {
+    return zoomFor(Number(localStorage.getItem(ZOOM_KEY))).minutes;
+  } catch {
+    return 60;
+  }
+}
+
 export function CalendarView({ tasks, clients, now }) {
   const [mode, setMode] = useState('day');
+  const [zoom, setZoomState] = useState(loadZoom);
+  const setZoom = (minutes) => {
+    setZoomState(minutes);
+    try {
+      localStorage.setItem(ZOOM_KEY, String(minutes));
+    } catch {
+      // Not saved; the zoom still applies until reload.
+    }
+  };
+  const zoomIndex = CALENDAR_ZOOMS.findIndex((z) => z.minutes === zoom);
   const [anchor, setAnchor] = useState(() => startOfDay(Date.now()));
 
   const days = useMemo(() => {
@@ -49,6 +70,40 @@ export function CalendarView({ tasks, clients, now }) {
         </div>
         <h1 className="mr-auto text-lg font-semibold">{title}</h1>
 
+        <div className="flex items-center gap-1" role="group" aria-label="Calendar zoom">
+          <Button
+            variant="ghost"
+            size="icon"
+            icon={ZoomOut}
+            onClick={() => setZoom(CALENDAR_ZOOMS[zoomIndex - 1].minutes)}
+            disabled={zoomIndex <= 0}
+            aria-label="Zoom out"
+            title="Zoom out"
+          />
+          <div className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900">
+            {CALENDAR_ZOOMS.map((z) => (
+              <button
+                key={z.minutes}
+                type="button"
+                onClick={() => setZoom(z.minutes)}
+                aria-pressed={zoom === z.minutes}
+                className={`whitespace-nowrap rounded-md px-2 py-1 text-xs font-medium ${zoom === z.minutes ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-600 dark:text-slate-400'}`}
+                title={`One row per ${z.label}`}
+              >
+                {z.label}
+              </button>
+            ))}
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            icon={ZoomIn}
+            onClick={() => setZoom(CALENDAR_ZOOMS[zoomIndex + 1].minutes)}
+            disabled={zoomIndex >= CALENDAR_ZOOMS.length - 1}
+            aria-label="Zoom in"
+            title="Zoom in"
+          />
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -57,6 +112,7 @@ export function CalendarView({ tasks, clients, now }) {
           tasks={tasks}
           clients={clients}
           now={now}
+          zoom={zoom}
           onSelectDay={(d) => {
             setAnchor(d);
             setMode('day');
