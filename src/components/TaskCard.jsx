@@ -393,6 +393,7 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits, jiraDomain })
                       onClick={() => actions.removeSubtask(task.id, s.id)}
                       className="invisible rounded p-0.5 text-slate-400 hover:text-rose-500 group-hover:visible pointer-coarse:visible"
                       aria-label="Remove subtask"
+                      title="Remove subtask. Its tracked time stays as “Not on a subtask”."
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -428,7 +429,7 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits, jiraDomain })
             </li>
           );
         })}
-        {task.subtasks.length > 0 && unassigned > 0 && (
+        {unassigned > 0 && task.kind !== 'interruption' && (
           <UnassignedRow
             ms={unassigned}
             onRemove={() => actions.removeUnassigned(task.id)}
