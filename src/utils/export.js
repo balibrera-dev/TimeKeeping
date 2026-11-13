@@ -1,5 +1,6 @@
 import { DAY, isoDate, isoLocal, startOfDay } from './time.js';
 import { sessionsInRange, subtaskTitle, workSessions } from './sessions.js';
+import { toPlainText } from './richText.js';
 
 /** Flat rows for one day's sessions (open session clipped at `now`). */
 export function dayLogRows(tasks, dayTs, now, clients = []) {
@@ -21,7 +22,7 @@ export function dayLogRows(tasks, dayTs, now, clients = []) {
       end: isoLocal(s.endTime),
       durationMinutes: Math.round((s.duration / 60_000) * 100) / 100,
       running: s.live,
-      comment: subtask ? subtask.notes : s.task.notes,
+      comment: toPlainText(subtask ? subtask.notes : s.task.notes),
       jira: s.task.jira ?? '',
       subtaskJira: subtask?.jira ?? '',
     };

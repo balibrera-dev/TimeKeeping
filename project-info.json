@@ -9,6 +9,7 @@
     "React 19",
     "Tailwind CSS 4",
     "Lucide React",
+    "Tiptap 3 (rich text comments)",
     "JavaScript (JSX + JSDoc)",
     "localStorage",
     "node:test"

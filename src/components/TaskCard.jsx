@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Button, ClientBadge, ClientSelect, InlineEdit, ProgressBar, StatusBadge, inputClass, taskColor } from './ui.jsx';
 import { CommentBox } from './CommentBox.jsx';
+import { isBlankComment, toPlainText } from '../utils/richText.js';
 import { JiraChip, JiraDomainHint, JiraKeyInput } from './Jira.jsx';
 import { parseIssueKey } from '../utils/jira.js';
 import { useSortable } from '../hooks/useSortable.js';
@@ -47,7 +48,7 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
   const client = clients.find((c) => c.id === task.clientId);
   const color = taskColor(task, clients);
   const current = task.subtasks.find((s) => s.id === task.currentSubtaskId);
-  const hasComments = task.notes.trim() || task.subtasks.some((s) => s.notes?.trim());
+  const hasComments = !isBlankComment(task.notes) || task.subtasks.some((s) => !isBlankComment(s.notes));
   const sessionCount = task.logs.length + (isActive ? 1 : 0);
 
   useEffect(() => {
@@ -248,7 +249,7 @@ export function TaskCard({ task, now, actions, hasActive, clients, settings, onM
                 </div>
               </div>
             )}
-            {(task.subtasks.length === 0 || task.notes.trim()) && (
+            {(task.subtasks.length === 0 || !isBlankComment(task.notes)) && (
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{task.subtasks.length ? 'General comment' : 'Comment'}</h4>
                 <CommentBox
@@ -382,9 +383,9 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits, jiraDomain })
                     <button
                       type="button"
                       onClick={() => setCommentOpen(showComment ? null : s.id)}
-                      className={`rounded p-0.5 ${s.notes?.trim() ? 'text-amber-500' : 'text-slate-300 hover:text-slate-500 dark:text-slate-600'}`}
-                      aria-label={s.notes?.trim() ? 'Edit comment' : 'Add comment'}
-                      title={s.notes?.trim() ? 'Edit comment' : 'Add comment'}
+                      className={`rounded p-0.5 ${!isBlankComment(s.notes) ? 'text-amber-500' : 'text-slate-300 hover:text-slate-500 dark:text-slate-600'}`}
+                      aria-label={!isBlankComment(s.notes) ? 'Edit comment' : 'Add comment'}
+                      title={!isBlankComment(s.notes) ? 'Edit comment' : 'Add comment'}
                     >
                       <MessageSquare className="h-3.5 w-3.5" />
                     </button>
@@ -416,13 +417,13 @@ function SubtaskList({ task, now, actions, client, allowTimeEdits, jiraDomain })
                   />
                 </div>
               ) : (
-                s.notes?.trim() && (
+                !isBlankComment(s.notes) && (
                   <button
                     type="button"
                     onClick={() => setCommentOpen(s.id)}
                     className="block w-full truncate px-1.5 pb-1 pl-7 text-left text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                   >
-                    {s.notes.trim().split('\n').slice(-1)[0]}
+                    {toPlainText(s.notes).trim().split('\n').slice(-1)[0]}
                   </button>
                 )
               )}
