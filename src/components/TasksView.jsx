@@ -5,6 +5,7 @@ import { TaskCard } from './TaskCard.jsx';
 import { NewTaskModal } from './NewTaskModal.jsx';
 import { useSortable } from '../hooks/useSortable.js';
 import { DEFAULT_SETTINGS } from '../utils/reducer.js';
+import { toPlainText } from '../utils/richText.js';
 
 const FILTERS = [
   { id: 'open', label: 'Open' },
@@ -47,9 +48,9 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
       t.category.toLowerCase().includes(q) ||
       clientName(t).includes(q) ||
       t.stakeholder?.toLowerCase().includes(q) ||
-      t.notes.toLowerCase().includes(q) ||
+      toPlainText(t.notes).toLowerCase().includes(q) ||
       t.jira?.toLowerCase().includes(q) ||
-      t.subtasks.some((s) => s.title.toLowerCase().includes(q) || s.notes?.toLowerCase().includes(q) || s.jira?.toLowerCase().includes(q));
+      t.subtasks.some((s) => s.title.toLowerCase().includes(q) || toPlainText(s.notes).toLowerCase().includes(q) || s.jira?.toLowerCase().includes(q));
     // Tasks keep the order you drag them into (their order in storage), even
     // when one starts; completed ones go last.
     return state.tasks

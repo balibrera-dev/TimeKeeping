@@ -3,6 +3,7 @@ import { ArrowDown, ArrowRightLeft, ArrowUp, CheckCircle2, ChevronDown, Circle, 
 import { ClientBadge, ClientSelect, EmptyState, ProgressBar, inputClass } from './ui.jsx';
 import { JiraChip, JiraDomainHint, JiraKeyInput } from './Jira.jsx';
 import { CommentBox } from './CommentBox.jsx';
+import { isBlankComment, toPlainText } from '../utils/richText.js';
 import { useSortable } from '../hooks/useSortable.js';
 import { DEFAULT_SETTINGS, subtaskViewOrder } from '../utils/reducer.js';
 import { subtaskTotals } from '../utils/sessions.js';
@@ -89,7 +90,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenTask, onO
       r.task.stakeholder?.toLowerCase().includes(q) ||
       r.task.jira?.toLowerCase().includes(q) ||
       r.subtask.jira?.toLowerCase().includes(q) ||
-      r.subtask.notes?.toLowerCase().includes(q);
+      toPlainText(r.subtask.notes).toLowerCase().includes(q);
     const col = COLUMNS.find((c) => c.id === sort.id) ?? COLUMNS[0];
     return allRows
       .filter(MATCHERS[filter])
@@ -389,7 +390,7 @@ function SubtaskName({ row, actions }) {
         <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" title="Last tracked subtask of a paused task" />
       ) : null}
       <span className="break-words">{subtask.title}</span>
-      {subtask.notes?.trim() && <MessageSquare className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Has a comment" />}
+      {!isBlankComment(subtask.notes) && <MessageSquare className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Has a comment" />}
     </button>
   );
 }

@@ -20,3 +20,44 @@ body {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* Rich text comments (Tiptap editor). */
+.rich-text p {
+  margin: 0;
+}
+.rich-text p + p,
+.rich-text p + ul,
+.rich-text p + ol,
+.rich-text ul + p,
+.rich-text ol + p {
+  margin-top: 0.25rem;
+}
+.rich-text ul,
+.rich-text ol {
+  padding-left: 1.25rem;
+}
+.rich-text ul {
+  list-style: disc;
+}
+.rich-text ol {
+  list-style: decimal;
+}
+.rich-text li > p {
+  margin: 0;
+}
+.rich-text a {
+  @apply text-sky-700 underline underline-offset-2 dark:text-sky-400;
+}
+.rich-text code {
+  @apply rounded bg-slate-100 px-1 font-mono text-[0.85em] dark:bg-slate-800;
+}
+.rich-text blockquote {
+  @apply border-l-2 border-slate-300 pl-3 text-slate-600 dark:border-slate-600 dark:text-slate-400;
+}
+.rich-text p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  @apply text-slate-400;
+}
