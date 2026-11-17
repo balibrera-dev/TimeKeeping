@@ -61,3 +61,25 @@ body {
   pointer-events: none;
   @apply text-slate-400;
 }
+
+/*
+ * Client accent: while a client's task runs, the emerald scale takes the
+ * client's hue (see useClientAccent). Lightness follows emerald's own steps
+ * so text and button contrast match the default; chroma is capped so pale
+ * or neon picks still read as a clean accent.
+ */
+@supports (color: oklch(from red l c h)) {
+  :root[data-client-accent] {
+    --color-emerald-50: oklch(from var(--client-accent) 0.979 min(c, 0.021) h);
+    --color-emerald-100: oklch(from var(--client-accent) 0.95 min(c, 0.052) h);
+    --color-emerald-200: oklch(from var(--client-accent) 0.905 min(c, 0.093) h);
+    --color-emerald-300: oklch(from var(--client-accent) 0.845 min(c, 0.13) h);
+    --color-emerald-400: oklch(from var(--client-accent) 0.765 min(c, 0.177) h);
+    --color-emerald-500: oklch(from var(--client-accent) 0.696 min(c, 0.17) h);
+    --color-emerald-600: oklch(from var(--client-accent) 0.596 min(c, 0.145) h);
+    --color-emerald-700: oklch(from var(--client-accent) 0.508 min(c, 0.118) h);
+    --color-emerald-800: oklch(from var(--client-accent) 0.432 min(c, 0.095) h);
+    --color-emerald-900: oklch(from var(--client-accent) 0.378 min(c, 0.077) h);
+    --color-emerald-950: oklch(from var(--client-accent) 0.262 min(c, 0.051) h);
+  }
+}

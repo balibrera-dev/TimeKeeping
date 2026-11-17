@@ -18,6 +18,7 @@ import { useTheme } from './hooks/useTheme.js';
 import { useEstimateAlerts } from './hooks/useEstimateAlerts.js';
 import { useLegalRoute } from './hooks/useLegalRoute.js';
 import { useAdsConsent } from './hooks/useAdsConsent.js';
+import { useClientAccent } from './hooks/useClientAccent.js';
 import { DEFAULT_SETTINGS } from './utils/reducer.js';
 import { unlockAudioOnFirstGesture } from './utils/alerts.js';
 
@@ -52,6 +53,7 @@ export default function App() {
   const settings = { ...DEFAULT_SETTINGS, ...state.settings };
   const { alert, dismiss: dismissAlert } = useEstimateAlerts({ activeTask, now, settings, actions });
   useEffect(() => unlockAudioOnFirstGesture(), []);
+  useClientAccent(activeTask, state.clients);
 
   return (
     <div className="flex min-h-screen flex-col">
