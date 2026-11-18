@@ -27,15 +27,20 @@ const MATCHERS = {
 /** The first filter tab that shows this task, so a task opened from elsewhere is visible. */
 const filterFor = (task) => (task ? FILTERS.find((f) => f.id !== 'all' && MATCHERS[f.id](task))?.id ?? 'all' : 'open');
 
-export function TasksView({ state, activeTask, actions, now, onManageTemplates, onManageClients, onCreated, onOpenSettings, focusTaskId, onFocused }) {
+/** With clientId set (a client dashboard), only that client's tasks show and new tasks get that client. */
+export function TasksView({ state, activeTask, actions, now, onManageTemplates, onManageClients, onCreated, onOpenSettings, focusTaskId, onFocused, clientId = null }) {
   const [filter, setFilter] = useState(() => filterFor(state.tasks.find((t) => t.id === focusTaskId)));
   const [query, setQuery] = useState('');
   const [clientFilter, setClientFilter] = useState(null);
   const [creating, setCreating] = useState(false);
+  const client = clientId ?? clientFilter;
+  const scoped = useMemo(() => (clientId ? state.tasks.filter((t) => t.clientId === clientId) : state.tasks), [state.tasks, clientId]);
+  const filters = clientId ? FILTERS.filter((f) => f.id !== 'interruptions') : FILTERS;
+  const Heading = clientId ? 'h2' : 'h1';
 
   const counts = useMemo(
-    () => Object.fromEntries(FILTERS.map((f) => [f.id, state.tasks.filter(MATCHERS[f.id]).length])),
-    [state.tasks],
+    () => Object.fromEntries(FILTERS.map((f) => [f.id, scoped.filter(MATCHERS[f.id]).length])),
+    [scoped],
   );
 
   const settings = { ...DEFAULT_SETTINGS, ...state.settings };
@@ -53,11 +58,11 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
       t.subtasks.some((s) => s.title.toLowerCase().includes(q) || toPlainText(s.notes).toLowerCase().includes(q) || s.jira?.toLowerCase().includes(q));
     // Tasks keep the order you drag them into (their order in storage), even
     // when one starts; completed ones go last.
-    return state.tasks
+    return scoped
       .filter(MATCHERS[filter])
-      .filter((t) => !clientFilter || t.clientId === clientFilter)
+      .filter((t) => !client || t.clientId === client)
       .filter(matches);
-  }, [state.tasks, state.clients, filter, query, clientFilter]);
+  }, [scoped, state.clients, filter, query, client]);
 
   const done = visible.filter((t) => t.status === 'completed');
   const movable = visible.filter((t) => !done.includes(t));
@@ -87,18 +92,18 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-xl font-semibold">Tasks</h1>
+        <Heading className="mr-auto text-xl font-semibold">Tasks</Heading>
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input className={`${inputClass} w-56 pl-8`} placeholder="Search tasks & comments" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
-        {state.clients.length > 0 && (
+        {!clientId && state.clients.length > 0 && (
           <div className="w-44">
             <ClientSelect clients={state.clients} value={clientFilter} onChange={setClientFilter} />
           </div>
         )}
         <div className="flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-900">
-          {FILTERS.map((f) => (
+          {filters.map((f) => (
             <button
               key={f.id}
               type="button"
@@ -116,7 +121,19 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
         </Button>
       </div>
 
-      {state.tasks.length === 0 ? (
+      {scoped.length === 0 && clientId ? (
+        <EmptyState
+          icon={ClipboardList}
+          title="No tasks for this client yet"
+          action={
+            <Button variant="primary" icon={Plus} onClick={() => setCreating(true)}>
+              Create a task
+            </Button>
+          }
+        >
+          Tasks you create here are tagged with this client, so their time shows on this dashboard.
+        </EmptyState>
+      ) : state.tasks.length === 0 ? (
         <EmptyState
           icon={ClipboardList}
           title="No tasks yet"
@@ -131,7 +148,7 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
         </EmptyState>
       ) : visible.length === 0 ? (
         <EmptyState icon={Search} title="Nothing matches">
-          {query || clientFilter
+          {query || (clientFilter && !clientId)
             ? 'Try a different search or client.'
             : filter === 'completed'
               ? 'No completed tasks yet.'
@@ -168,6 +185,7 @@ export function TasksView({ state, activeTask, actions, now, onManageTemplates, 
         onClose={() => setCreating(false)}
         templates={state.templates}
         clients={state.clients}
+        defaultClientId={clientId}
         onCreate={(input) => {
           const id = actions.createTask(input);
           if (!input.startNow) onCreated(id, input.title.trim());

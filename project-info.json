@@ -92,7 +92,9 @@
       "state_hook": "src/hooks/useTracker.js",
       "export": "src/utils/export.js",
       "feature_flags": "src/config.js",
-      "ai_rewrite": "src/utils/ai.js"
+      "ai_rewrite": "src/utils/ai.js",
+      "client_dashboards": "src/components/ClientDashboard.jsx + src/utils/clientRoute.js (rutas /<slug-del-cliente>)",
+      "spa_rewrites": "vercel.json (todas las rutas sirven index.html para que /<cliente> funcione en Vercel)"
     }
   },
   "notes": "No hay backend ni base de datos: los datos viven en el localStorage de cada navegador, y cada dirección (localhost, IP de la PC, Vercel) tiene sus propios datos. El export CSV/JSON es el backup."
