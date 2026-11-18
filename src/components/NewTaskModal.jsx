@@ -9,12 +9,12 @@ import { uid } from '../utils/id.js';
  * Create a task from a template or ad-hoc. "Create" (also Enter) does not start
  * the timer; the caller can then offer to start it. "Create & start" starts it.
  */
-export function NewTaskModal({ open, onClose, templates, clients, onCreate, onManageTemplates, onManageClients }) {
+export function NewTaskModal({ open, onClose, templates, clients, onCreate, onManageTemplates, onManageClients, defaultClientId = null }) {
   const [templateId, setTemplateId] = useState('');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Development');
   const [subtasks, setSubtasks] = useState([]);
-  const [clientId, setClientId] = useState(null);
+  const [clientId, setClientId] = useState(defaultClientId);
   const [stakeholder, setStakeholder] = useState('');
 
   useEffect(() => {
@@ -23,7 +23,7 @@ export function NewTaskModal({ open, onClose, templates, clients, onCreate, onMa
       setTitle('');
       setCategory('Development');
       setSubtasks([]);
-      setClientId(null);
+      setClientId(defaultClientId);
       setStakeholder('');
     }
   }, [open]);

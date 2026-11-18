@@ -17,7 +17,9 @@ function loadZoom() {
   }
 }
 
-export function CalendarView({ tasks, clients, now }) {
+/** embedded: shown inside a client dashboard, so the date is a section heading, not the page title. */
+export function CalendarView({ tasks, clients, now, embedded = false }) {
+  const Heading = embedded ? 'h3' : 'h1';
   const [mode, setMode] = useState('day');
   const [zoom, setZoomState] = useState(loadZoom);
   const setZoom = (minutes) => {
@@ -68,7 +70,7 @@ export function CalendarView({ tasks, clients, now }) {
           </Button>
           <Button variant="ghost" size="icon" icon={ChevronRight} onClick={() => step(1)} aria-label="Next" />
         </div>
-        <h1 className="mr-auto text-lg font-semibold">{title}</h1>
+        <Heading className="mr-auto text-lg font-semibold">{title}</Heading>
 
         <div className="flex items-center gap-1" role="group" aria-label="Calendar zoom">
           <Button

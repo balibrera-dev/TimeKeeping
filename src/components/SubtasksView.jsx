@@ -39,11 +39,13 @@ const COLUMNS = [
  * keep your own order (drag the grip); the pencil opens the subtask's details
  * (name, estimate, Jira key, comment).
  */
-export function SubtasksView({ state, actions, now, onOpenTasks, onOpenTask, onOpenSettings }) {
+export function SubtasksView({ state, actions, now, onOpenTasks, onOpenTask, onOpenSettings, clientId = null }) {
   const [filter, setFilter] = useState('open');
   const [query, setQuery] = useState('');
   const [clientFilter, setClientFilter] = useState(null);
   const [sort, setSort] = useState({ id: 'order', dir: 1 });
+  const client = clientId ?? clientFilter;
+  const Heading = clientId ? 'h2' : 'h1';
   const [editing, setEditing] = useState(null); // subtask id with its details open
   const settings = { ...DEFAULT_SETTINGS, ...state.settings };
   const running = state.tasks.find((t) => t.status === 'active');
@@ -53,6 +55,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenTask, onO
     const rows = [];
     state.tasks.forEach((task, taskIndex) => {
       if (task.kind === 'interruption') return;
+      if (clientId && task.clientId !== clientId) return;
       const totals = subtaskTotals(task, now);
       const client = state.clients.find((c) => c.id === task.clientId);
       task.subtasks.forEach((subtask, subtaskIndex) => {
@@ -75,7 +78,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenTask, onO
       });
     });
     return rows;
-  }, [state, now]);
+  }, [state, now, clientId]);
 
   const counts = Object.fromEntries(FILTERS.map((f) => [f.id, allRows.filter(MATCHERS[f.id]).length]));
 
@@ -94,14 +97,14 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenTask, onO
     const col = COLUMNS.find((c) => c.id === sort.id) ?? COLUMNS[0];
     return allRows
       .filter(MATCHERS[filter])
-      .filter((r) => !clientFilter || r.task.clientId === clientFilter)
+      .filter((r) => !client || r.task.clientId === client)
       .filter(matches)
       .sort((a, b) => {
         const va = col.value(a);
         const vb = col.value(b);
         return (va < vb ? -1 : va > vb ? 1 : 0) * sort.dir || a.order - b.order;
       });
-  }, [allRows, filter, query, clientFilter, sort]);
+  }, [allRows, filter, query, client, sort]);
 
   // Dragging works in your own order; sorted by a column, the grips hide.
   const manual = sort.id === 'order';
@@ -120,7 +123,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenTask, onO
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-xl font-semibold">Subtasks</h1>
+        <Heading className="mr-auto text-xl font-semibold">Subtasks</Heading>
         {!manual && (
           <button type="button" onClick={() => toggleSort('order')} className="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400">
             Back to my order
@@ -130,7 +133,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenTask, onO
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input className={`${inputClass} w-56 pl-8`} placeholder="Search subtasks, tasks, Jira" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
-        {state.clients.length > 0 && (
+        {!clientId && state.clients.length > 0 && (
           <div className="w-44">
             <ClientSelect clients={state.clients} value={clientFilter} onChange={setClientFilter} />
           </div>
@@ -164,7 +167,7 @@ export function SubtasksView({ state, actions, now, onOpenTasks, onOpenTask, onO
         </EmptyState>
       ) : rows.length === 0 ? (
         <EmptyState icon={Search} title="Nothing matches">
-          {query || clientFilter
+          {query || (clientFilter && !clientId)
             ? 'Try a different search or client.'
             : filter === 'done'
               ? 'No subtasks are done yet.'

@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Briefcase, Check, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Briefcase, Check, LayoutDashboard, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button, Card, EmptyState, Field, Modal, inputClass } from './ui.jsx';
 import { CLIENT_COLORS } from '../types/index.js';
 import { formatDuration } from '../utils/time.js';
 import { sessionsForDay, taskElapsed, workSessions } from '../utils/sessions.js';
+import { clientPath } from '../utils/clientRoute.js';
 
-export function ClientsView({ state, actions, now }) {
+export function ClientsView({ state, actions, now, onOpenClient }) {
   const [editing, setEditing] = useState(null); // client draft or null
   const [confirmDelete, setConfirmDelete] = useState(null);
 
@@ -25,6 +26,13 @@ export function ClientsView({ state, actions, now }) {
     }
     return map;
   }, [state.tasks, state.clients, now]);
+
+  // A plain link, so Ctrl/Cmd+click or middle-click opens the dashboard in a new tab.
+  const open = (client) => (e) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    onOpenClient?.(client);
+  };
 
   const nextColor = CLIENT_COLORS[state.clients.length % CLIENT_COLORS.length];
   const startNew = () => setEditing({ id: null, name: '', color: nextColor });
@@ -61,11 +69,24 @@ export function ClientsView({ state, actions, now }) {
               <Card key={c.id} className="flex items-center gap-3 border-l-4 p-4" style={{ borderLeftColor: c.color }}>
                 <span className="h-9 w-9 shrink-0 rounded-lg" style={{ backgroundColor: c.color }} aria-hidden="true" />
                 <div className="min-w-0 flex-1">
-                  <h3 className="truncate font-semibold">{c.name}</h3>
+                  <h3 className="truncate font-semibold">
+                    <a href={clientPath(c, state.clients)} onClick={open(c)} className="hover:underline">
+                      {c.name}
+                    </a>
+                  </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     {s.open} open task{s.open === 1 ? '' : 's'} · today {formatDuration(s.today)} · total {formatDuration(s.total)}
                   </p>
                 </div>
+                <a
+                  href={clientPath(c, state.clients)}
+                  onClick={open(c)}
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200 hover:bg-emerald-50 dark:text-emerald-400 dark:ring-emerald-900 dark:hover:bg-emerald-950"
+                  title={`Open ${c.name}'s dashboard`}
+                >
+                  <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
+                  <span className="max-[379px]:sr-only">Dashboard</span>
+                </a>
                 <Button variant="ghost" size="icon" icon={Pencil} onClick={() => setEditing(c)} aria-label={`Edit ${c.name}`} title="Edit" />
                 <Button variant="danger" size="icon" icon={Trash2} onClick={() => setConfirmDelete(c)} aria-label={`Delete ${c.name}`} title="Delete" />
               </Card>
