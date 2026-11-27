@@ -1,10 +1,14 @@
 import { useEffect } from 'react';
-import { BellRing, CheckCircle2, SkipForward, Undo2, X } from 'lucide-react';
+import { BellRing, CheckCircle2, Plus, SkipForward, Undo2, X } from 'lucide-react';
 import { Button } from './ui.jsx';
+
+/** Minutes the "+30 min" button adds to the estimate. */
+const EXTEND_MINUTES = 30;
 
 /**
  * Shown when the running subtask nears / reaches its estimate. "Stay" is the
- * default (just dismisses). After an automatic move to the next subtask it
+ * default (just dismisses); "+30 min" adds time to the estimate so the alert
+ * comes back when the new estimate is reached. After an automatic move to the next subtask it
  * offers Undo instead.
  */
 export function EstimateAlert({ alert, actions, onDismiss }) {
@@ -62,6 +66,9 @@ export function EstimateAlert({ alert, actions, onDismiss }) {
                   Mark task done
                 </Button>
               )}
+              <Button size="sm" icon={Plus} onClick={run(() => actions.extendEstimate(alert.taskId, alert.subtaskId, EXTEND_MINUTES))} title={`Add ${EXTEND_MINUTES} minutes to the estimate and keep going`}>
+                {EXTEND_MINUTES} min
+              </Button>
               <Button size="sm" variant="primary" onClick={onDismiss}>
                 Stay on it
               </Button>

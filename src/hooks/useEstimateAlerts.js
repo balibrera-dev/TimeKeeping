@@ -48,7 +48,7 @@ export function useEstimateAlerts({ activeTask, now, settings, actions }) {
       actions.start(task.id, target.next.id);
       setAlert({ type: 'moved', taskId: task.id, fromId: task.currentSubtaskId, label: target.label, nextLabel: target.next.title, body });
     } else {
-      setAlert({ type: stage, taskId: task.id, key: target.key, label: target.label, taskTitle: task.title, isSubtask: target.isSubtask, next: target.next, subtaskId: task.currentSubtaskId, body });
+      setAlert({ type: stage, taskId: task.id, key: target.key, label: target.label, taskTitle: task.title, isSubtask: target.isSubtask, next: target.next, subtaskId: target.isSubtask ? task.currentSubtaskId : null, body });
     }
     if (settings.alertSound) playPing();
     if (settings.desktopNotifications && (document.visibilityState !== 'visible' || !document.hasFocus())) {

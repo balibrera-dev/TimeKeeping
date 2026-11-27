@@ -64,6 +64,7 @@
  * @property {string | null} clientId
  * @property {string} stakeholder  Who the task is for, free text ('' when none).
  * @property {boolean} onHold  Set aside in the backlog: hidden from Open and Switch until started again.
+ * @property {number} extraEstimate  Minutes added to the task's estimate on top of its subtasks ("+30 min" on the estimate alert).
  * @property {string | null} templateId
  * @property {TaskStatus} status
  * @property {Subtask[]} subtasks

@@ -463,3 +463,21 @@ test('removing the last subtask keeps its time on the task, as time not on a sub
   assert.equal(byId(s, 't1').subtasks[0].title, 'Recovered');
   assert.equal(subtaskTotals(byId(s, 't1'), T0 + 30 * MIN).get(byId(s, 't1').subtasks[0].id), 20 * MIN);
 });
+
+test('ESTIMATE_EXTEND adds minutes to the subtask, or to the task when there is no subtask', () => {
+  let s = { ...initialState(T0), tasks: [] };
+  s = reducer(s, { type: 'TASK_CREATE', id: 't1', title: 'A', now: T0, subtasks: [{ title: 'One', estimate: 60 }] });
+  const id = byId(s, 't1').subtasks[0].id;
+  s = reducer(s, { type: 'ESTIMATE_EXTEND', taskId: 't1', subtaskId: id, minutes: 30 });
+  assert.equal(byId(s, 't1').subtasks[0].estimate, 90);
+  s = reducer(s, { type: 'ESTIMATE_EXTEND', taskId: 't1', subtaskId: null, minutes: 30 });
+  assert.equal(byId(s, 't1').extraEstimate, 30);
+  assert.equal(byId(s, 't1').subtasks[0].estimate, 90);
+  const same = reducer(s, { type: 'ESTIMATE_EXTEND', taskId: 't1', subtaskId: id, minutes: 0 });
+  assert.equal(same, s);
+});
+
+test('old saved tasks get no extra estimate', () => {
+  const loaded = sanitizeState({ templates: [], tasks: [{ id: 'x', title: 'Old', status: 'idle', subtasks: [], logs: [] }] });
+  assert.equal(loaded.tasks[0].extraEstimate, 0);
+});

@@ -391,6 +391,19 @@ function step(state, action) {
         subtasks: t.subtasks.map((s) => (s.id === action.subtaskId ? { ...s, ...patch } : s)),
       }));
     }
+    /**
+     * Give the running work more time: adds `minutes` to the subtask's estimate,
+     * or to the task's own extra estimate when there is no subtask.
+     */
+    case 'ESTIMATE_EXTEND': {
+      const minutes = Math.round(Number(action.minutes) || 0);
+      if (minutes <= 0) return state;
+      return mapTask(state, action.taskId, (t) =>
+        action.subtaskId
+          ? { ...t, subtasks: t.subtasks.map((s) => (s.id === action.subtaskId ? { ...s, estimate: (Number(s.estimate) || 0) + minutes } : s)) }
+          : { ...t, extraEstimate: (Number(t.extraEstimate) || 0) + minutes },
+      );
+    }
     /** Manual order of the Subtasks page: `ids` are the dragged rows in their new order. */
     case 'SUBTASK_VIEW_REORDER':
       return { ...state, subtaskOrder: reorderSubset(subtaskViewOrder(state).map((id) => ({ id })), action.ids ?? []).map((it) => it.id) };
@@ -461,6 +474,7 @@ export function sanitizeState(raw) {
     clientId: null,
     stakeholder: '',
     onHold: false,
+    extraEstimate: 0,
     currentSubtaskId: null,
     ...t,
     // One Jira key per task now; older data had a Story and a Parent (Story wins).

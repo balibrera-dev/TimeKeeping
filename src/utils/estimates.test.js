@@ -60,3 +60,12 @@ test('idle time is recorded but excluded from work totals and exports', () => {
   assert.ok(dayLogRows(s.tasks, T0, now).every((r) => r.type !== 'idle'));
   assert.equal(s.tasks.find((t) => t.id === 'r').status, 'active', 'resumes the task after idle');
 });
+
+test('+30 min moves a reached subtask back to none until the new estimate is used up', () => {
+  let s = running();
+  const id = s.tasks[0].subtasks[0].id;
+  assert.equal(alertStage(estimateTarget(s.tasks[0], T0 + 31 * MIN), 0), 'reached');
+  s = reducer(s, { type: 'ESTIMATE_EXTEND', taskId: 'r', subtaskId: id, minutes: 30 });
+  assert.equal(alertStage(estimateTarget(s.tasks[0], T0 + 31 * MIN), 0), 'none');
+  assert.equal(alertStage(estimateTarget(s.tasks[0], T0 + 60 * MIN), 0), 'reached');
+});
