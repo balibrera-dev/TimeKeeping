@@ -65,7 +65,7 @@ export function taskElapsed(task, now) {
 
 /** Sum of subtask estimates, in minutes. */
 export function taskEstimate(task) {
-  return task.subtasks.reduce((sum, s) => sum + (Number(s.estimate) || 0), 0);
+  return task.subtasks.reduce((sum, s) => sum + (Number(s.estimate) || 0), 0) + (Number(task.extraEstimate) || 0);
 }
 
 /**

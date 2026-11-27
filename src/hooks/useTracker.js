@@ -74,6 +74,8 @@ export function useTracker() {
       addSubtask: (taskId, title, estimate) => dispatch({ type: 'SUBTASK_ADD', taskId, title, estimate }),
       removeSubtask: (taskId, subtaskId) => dispatch({ type: 'SUBTASK_REMOVE', taskId, subtaskId, now: now() }),
       renameSubtask: (taskId, subtaskId, title) => dispatch({ type: 'SUBTASK_RENAME', taskId, subtaskId, title }),
+      /** Add minutes to a subtask's estimate (or the task's, when subtaskId is null). */
+      extendEstimate: (taskId, subtaskId, minutes) => dispatch({ type: 'ESTIMATE_EXTEND', taskId, subtaskId, minutes }),
       /** Change a subtask's name, estimate (minutes) and/or Jira key; omitted fields stay as they are. */
       editSubtask: (taskId, subtaskId, { title, estimate, jira }) => dispatch({ type: 'SUBTASK_EDIT', taskId, subtaskId, title, estimate, jira }),
       /** Save the Subtasks page's manual order for the rows in `ids`. */
